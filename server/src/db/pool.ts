@@ -9,5 +9,15 @@ export const pool = createPool({
   database: env.DB_NAME,
   connectionLimit: 10,
   charset: "utf8mb4",
+  timezone: "Z",
   dateStrings: true
+});
+
+pool.pool.on("connection", (connection) => {
+  connection.query("SET time_zone = '+00:00'", (error) => {
+    if (error) {
+      console.error("Failed to set MySQL session timezone to UTC.", error);
+      connection.destroy();
+    }
+  });
 });

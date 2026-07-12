@@ -1,4 +1,6 @@
 import http from "node:http";
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import cors from "cors";
 import express from "express";
 import multer from "multer";
@@ -23,6 +25,8 @@ const corsOrigins = env.CLIENT_ORIGIN.split(",")
   .filter(Boolean);
 
 ensureUploadDirs();
+const updateRoot = env.UPDATE_ROOT || path.resolve(process.cwd(), "..", "updates");
+mkdirSync(updateRoot, { recursive: true });
 
 app.use(
   cors({
@@ -32,6 +36,9 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(uploadRoot));
+app.use("/updates", express.static(updateRoot, {
+  fallthrough: false
+}));
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true });

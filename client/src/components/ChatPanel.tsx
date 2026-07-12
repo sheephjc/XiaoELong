@@ -3,6 +3,7 @@ import {
   ClipboardEvent,
   DragEvent,
   FormEvent,
+  memo,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -115,17 +116,19 @@ function formatTime(dateString: string): string {
     return "--:--";
   }
 
-  const beijingDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
-  const hours = String(beijingDate.getUTCHours()).padStart(2, "0");
-  const minutes = String(beijingDate.getUTCMinutes()).padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  }).format(date);
 }
 
 function hasFiles(event: DragEvent<HTMLElement>): boolean {
   return Array.from(event.dataTransfer.types).includes("Files");
 }
 
-export function ChatPanel(props: ChatPanelProps): JSX.Element {
+export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Element {
   const [content, setContent] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [fileFile, setFileFile] = useState<File | null>(null);
@@ -320,6 +323,21 @@ export function ChatPanel(props: ChatPanelProps): JSX.Element {
     };
   }, [viewerIndex, imageMessages.length]);
 
+  useEffect(() => {
+    function resetDragDepth(): void {
+      setDragDepth(0);
+    }
+
+    window.addEventListener("drop", resetDragDepth);
+    window.addEventListener("dragend", resetDragDepth);
+    window.addEventListener("blur", resetDragDepth);
+    return () => {
+      window.removeEventListener("drop", resetDragDepth);
+      window.removeEventListener("dragend", resetDragDepth);
+      window.removeEventListener("blur", resetDragDepth);
+    };
+  }, []);
+
   function clearSelectedAttachment(): void {
     setImageFile(null);
     setFileFile(null);
@@ -509,57 +527,59 @@ export function ChatPanel(props: ChatPanelProps): JSX.Element {
 
       {dragDepth > 0 ? <div className="chat-drop-overlay">释放以添加附件</div> : null}
 
-      {newMessageCount > 0 ? (
-        <button type="button" className="chat-new-message-pill" onClick={() => scrollToBottom("smooth")}>
-          有新消息 {newMessageCount} 条
-        </button>
-      ) : null}
-
-      {imagePreviewUrl || fileFile ? (
-        <div className={`chat-attachment-preview ${fileFile ? "file" : "image"}`}>
-          {imagePreviewUrl ? <img src={imagePreviewUrl} alt={imageFile?.name ?? ""} /> : null}
-          {fileFile ? <span className="chat-file-icon">FILE</span> : null}
-          <span className="chat-attachment-name">
-            {imageFile?.name ?? fileFile?.name}
-            {fileFile ? <small>{formatFileSize(fileFile.size)}</small> : null}
-          </span>
-          <button type="button" className="ghost-button" disabled={sending} onClick={clearSelectedAttachment}>
-            移除
+      <div className="chat-compose">
+        {newMessageCount > 0 ? (
+          <button type="button" className="chat-new-message-pill" onClick={() => scrollToBottom("smooth")}>
+            有新消息 {newMessageCount} 条
           </button>
-        </div>
-      ) : null}
+        ) : null}
 
-      <form onSubmit={handleSubmit} className="chat-form">
-        <input
-          type="text"
-          placeholder="写点什么..."
-          value={content}
-          onChange={(event) => setContent(event.target.value)}
-          onPaste={(event) => {
-            void handlePaste(event);
-          }}
-          maxLength={1000}
-        />
-        <input
-          ref={fileInputRef}
-          className="chat-attachment-input"
-          type="file"
-          onChange={handleAttachmentChange}
-        />
-        <button
-          type="button"
-          className="chat-attach-button"
-          disabled={sending}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          附件
-        </button>
-        <button type="submit" disabled={sending || (!content.trim() && !hasPendingAttachment)}>
-          {sending ? "发送中" : "发送"}
-        </button>
-      </form>
-      {attachmentError ? <p className="error-text">{attachmentError}</p> : null}
-      {props.sendError ? <p className="error-text">{props.sendError}</p> : null}
+        {imagePreviewUrl || fileFile ? (
+          <div className={`chat-attachment-preview ${fileFile ? "file" : "image"}`}>
+            {imagePreviewUrl ? <img src={imagePreviewUrl} alt={imageFile?.name ?? ""} /> : null}
+            {fileFile ? <span className="chat-file-icon">FILE</span> : null}
+            <span className="chat-attachment-name">
+              {imageFile?.name ?? fileFile?.name}
+              {fileFile ? <small>{formatFileSize(fileFile.size)}</small> : null}
+            </span>
+            <button type="button" className="ghost-button" disabled={sending} onClick={clearSelectedAttachment}>
+              移除
+            </button>
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} className="chat-form">
+          <input
+            type="text"
+            placeholder="写点什么..."
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            onPaste={(event) => {
+              void handlePaste(event);
+            }}
+            maxLength={1000}
+          />
+          <input
+            ref={fileInputRef}
+            className="chat-attachment-input"
+            type="file"
+            onChange={handleAttachmentChange}
+          />
+          <button
+            type="button"
+            className="chat-attach-button"
+            disabled={sending}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            附件
+          </button>
+          <button type="submit" disabled={sending || (!content.trim() && !hasPendingAttachment)}>
+            {sending ? "发送中" : "发送"}
+          </button>
+        </form>
+        {attachmentError ? <p className="error-text">{attachmentError}</p> : null}
+        {props.sendError ? <p className="error-text">{props.sendError}</p> : null}
+      </div>
 
       {activeImage ? (
         <div
@@ -571,9 +591,7 @@ export function ChatPanel(props: ChatPanelProps): JSX.Element {
         >
           <div className="chat-image-viewer-inner" onClick={(event) => event.stopPropagation()}>
             <div className="chat-image-viewer-top">
-              <span>
-                {viewerIndex !== null ? viewerIndex + 1 : 1}/{imageMessages.length} · {activeImage.userNickname}
-              </span>
+              <span>{activeImage.userNickname}</span>
               <button type="button" className="chat-image-viewer-close" onClick={() => setViewerIndex(null)}>
                 ×
               </button>
@@ -597,4 +615,4 @@ export function ChatPanel(props: ChatPanelProps): JSX.Element {
       ) : null}
     </section>
   );
-}
+});

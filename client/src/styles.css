@@ -63,6 +63,7 @@ body {
 }
 
 .panel {
+  position: relative;
   margin-top: 92px;
   padding: 18px;
   display: grid;
@@ -107,9 +108,9 @@ body {
 
 .avatar-dock {
   position: absolute;
-  left: 12px;
+  left: 5px;
   bottom: 0;
-  width: 146px;
+  width: 160px;
   height: 160px;
   border-radius: 0;
   border: 0;
@@ -128,13 +129,12 @@ body {
 }
 
 .avatar-dock-image {
-  width: 138px;
+  width: 154px;
   height: 154px;
   object-fit: contain;
   object-position: center;
   user-select: none;
   pointer-events: none;
-  filter: drop-shadow(0 8px 10px rgba(23, 93, 69, 0.22));
 }
 
 .avatar-mood-prompt {
@@ -486,46 +486,57 @@ button:disabled {
 }
 
 .gomoku-board {
+  position: relative;
   margin-top: 8px;
   width: min(100%, 600px);
   aspect-ratio: 1 / 1;
-  display: grid;
-  grid-template-columns: repeat(15, 1fr);
+  display: block;
   border: 1px solid #d3c9ad;
-  background: #eecf94;
+  background-color: #eecf94;
+  background-image:
+    linear-gradient(to right, transparent calc(100% - 1px), rgba(109, 79, 25, 0.25) 0),
+    linear-gradient(to bottom, transparent calc(100% - 1px), rgba(109, 79, 25, 0.25) 0);
+  background-repeat: repeat-x, repeat-y;
+  user-select: none;
+  cursor: default;
 }
 
-.gomoku-cell {
-  border: 1px solid rgba(109, 79, 25, 0.25);
-  border-radius: 0;
-  padding: 0;
-  background: transparent;
-  min-width: 0;
-  min-height: 0;
-  position: relative;
+.gomoku-board.playable {
+  cursor: pointer;
 }
 
-.gomoku-cell::after {
-  content: "";
+.gomoku-stone,
+.gomoku-keyboard-target {
   position: absolute;
-  width: 68%;
-  height: 68%;
-  top: 16%;
-  left: 16%;
+  pointer-events: none;
+}
+
+.gomoku-stone {
+  transform: translate(-50%, -50%);
   border-radius: 50%;
 }
 
-.gomoku-cell.black::after {
+.gomoku-board:focus {
+  outline: none;
+}
+
+.gomoku-board:focus-visible {
+  outline: 2px solid rgba(31, 138, 112, 0.72);
+  outline-offset: -2px;
+}
+
+.gomoku-board:focus-visible .gomoku-keyboard-target {
+  z-index: 1;
+  box-shadow: inset 0 0 0 2px rgba(31, 138, 112, 0.82);
+}
+
+.gomoku-stone.black {
   background: #1a1a1a;
 }
 
-.gomoku-cell.white::after {
+.gomoku-stone.white {
   background: #f9f9f9;
   border: 1px solid #999;
-}
-
-.gomoku-cell.empty:hover::after {
-  background: rgba(19, 73, 58, 0.2);
 }
 
 .join-card {
@@ -537,6 +548,26 @@ button:disabled {
 
 .join-card h1 {
   margin: 0 0 8px;
+}
+
+.session-recovery-card {
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.session-recovery-card h1,
+.session-recovery-card p {
+  margin: 0;
+}
+
+.session-recovery-card p {
+  color: #3e5d54;
+  line-height: 1.6;
+}
+
+.session-recovery-card button {
+  justify-self: center;
 }
 
 .subtext {
@@ -599,6 +630,27 @@ button:disabled {
   margin: 0;
   color: #c53c3c;
   font-size: 13px;
+}
+
+.connection-toast {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 8;
+  max-width: min(260px, calc(100% - 24px));
+  overflow: hidden;
+  border: 1px solid rgba(197, 60, 60, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 247, 245, 0.96);
+  color: #b53535;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(120, 38, 38, 0.1);
+  pointer-events: none;
 }
 
 @media (max-width: 860px) {
@@ -952,11 +1004,37 @@ button:disabled {
 .chat-panel {
   position: relative;
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
 }
 
+.renderer-error-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 20px;
+  background: #fffefa;
+}
+
+.renderer-error-card {
+  width: min(100%, 360px);
+  border: 1px solid #dcebe4;
+  border-radius: 16px;
+  background: #fff;
+  color: #24493f;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 14px 30px rgba(33, 76, 63, 0.12);
+}
+
+.renderer-error-card h1,
+.renderer-error-card p {
+  margin: 0 0 12px;
+}
+
 .chat-list {
+  position: relative;
+  z-index: 0;
   min-height: 0;
   max-height: none;
   margin-top: 0;
@@ -1235,6 +1313,15 @@ button:disabled {
   font-size: 10px;
 }
 
+.chat-compose {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-width: 0;
+}
+
 .chat-drop-overlay {
   position: absolute;
   inset: 44px 10px 78px;
@@ -1255,6 +1342,9 @@ button:disabled {
 }
 
 .chat-form {
+  position: relative;
+  z-index: 2;
+  margin-top: 0;
   border: 1px solid #dfece5;
   border-radius: 14px;
   background: #fff;
@@ -1313,6 +1403,7 @@ button:disabled {
 .daily-card,
 .gomoku-card {
   display: flex;
+  min-width: 0;
   min-height: 0;
   flex-direction: column;
 }
@@ -1331,8 +1422,14 @@ button:disabled {
 
 .daily-content {
   display: grid;
+  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
+  align-content: start;
+  grid-auto-rows: max-content;
   gap: 8px;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 2px 2px 2px 0;
   scrollbar-width: none;
@@ -1367,17 +1464,25 @@ button:disabled {
 }
 
 .question-visual {
+  width: min(100%, 520px);
+  max-width: 100%;
+  justify-self: center;
   overflow: hidden;
   border: 1px solid #dcebe4;
   border-radius: 14px;
   background: linear-gradient(180deg, #fbfefc 0%, #f4fbf7 100%);
+  padding-inline: clamp(12px, 3vw, 20px);
 }
 
 .question-visual-svg {
   display: block;
   width: 100%;
+  max-width: 100%;
   height: auto;
-  max-height: 210px;
+  max-height: none;
+  margin-inline: auto;
+  object-fit: contain;
+  object-position: center;
 }
 
 .question-visual-svg text {
@@ -1683,6 +1788,13 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
+}
+
+.gomoku-invite-response-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
 }
 
 .invite-popover-wrap {
@@ -1787,15 +1899,7 @@ button:disabled {
   box-shadow: none;
 }
 
-.gomoku-game-item span {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.gomoku-game-item small,
 .gomoku-game-item em,
-.gomoku-game-head span,
 .gomoku-game-head em {
   color: #6d8980;
   font-size: 12px;
@@ -1819,11 +1923,6 @@ button:disabled {
   align-items: flex-start;
 }
 
-.gomoku-game-head > div {
-  display: grid;
-  gap: 3px;
-}
-
 .gomoku-tip {
   border-radius: 999px;
   background: #f0faf6;
@@ -1835,12 +1934,8 @@ button:disabled {
 .gomoku-board {
   border-color: #c9b47e;
   border-radius: 10px;
-  background: #f0d79d;
+  background-color: #f0d79d;
   overflow: hidden;
-}
-
-.gomoku-cell.empty:hover::after {
-  background: rgba(84, 189, 212, 0.34);
 }
 
 .desktop-runtime .panel {
@@ -1947,7 +2042,7 @@ button:disabled {
 .desktop-runtime.desktop-role-panel,
 .desktop-runtime.desktop-role-panel body,
 .desktop-runtime.desktop-role-panel #root {
-  background: transparent !important;
+  background: #fff !important;
 }
 
 .desktop-runtime.desktop-role-avatar .shell-page,
@@ -1962,10 +2057,6 @@ button:disabled {
   padding: 0;
   overflow: hidden;
   background: transparent;
-}
-
-.desktop-runtime.desktop-role-panel .panel-page {
-  clip-path: inset(0 round 16px);
 }
 
 .desktop-runtime.desktop-role-avatar .avatar-widget {
@@ -1991,9 +2082,15 @@ button:disabled {
   max-width: none;
   height: 100vh !important;
   margin: 0;
-  border-radius: 16px;
+  border-radius: 0;
   box-shadow: none;
   overflow: hidden;
+}
+
+.desktop-runtime.desktop-role-panel .shell-page,
+.desktop-runtime.desktop-role-panel .panel-page,
+.desktop-runtime.desktop-role-panel .empty-page {
+  background: #fff;
 }
 
 .desktop-runtime.desktop-role-panel .status-list {
@@ -2200,9 +2297,13 @@ button:disabled {
 }
 
 .settings-panel .settings-topbar {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   min-height: 0;
+  flex: 0 0 auto;
+  margin-top: auto;
 }
 
 .settings-panel .settings-topbar h1 {
@@ -2210,6 +2311,8 @@ button:disabled {
 }
 
 .settings-panel .panel-action-buttons {
+  position: relative;
+  z-index: 1;
   display: grid;
   width: 100%;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2251,19 +2354,50 @@ button:disabled {
 }
 
 .settings-content {
-  display: grid;
-  grid-template-rows: auto auto;
-  gap: 10px;
+  display: flex;
+  height: 100%;
   min-height: 0;
-  overflow: auto;
-  padding-right: 2px;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
   transition:
     filter 140ms ease,
     opacity 140ms ease;
 }
 
+.settings-update-status {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 30px;
+  overflow: hidden;
+  border: 1px solid #dcebe4;
+  border-radius: 11px;
+  background: #fbfefc;
+  color: #4e7168;
+  padding: 6px 8px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.settings-update-status span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-update-progress {
+  flex: 0 0 auto;
+  color: #1f8a70;
+  font-weight: 800;
+}
+
 .settings-profile-form {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
   border: 1px solid #e0ede6;
   border-radius: 12px;
@@ -2343,19 +2477,24 @@ button:disabled {
   min-height: 32px;
 }
 
-.settings-profile-message,
-.settings-profile-success {
+.settings-profile-message {
   margin: 0;
   font-size: 12px;
   font-weight: 700;
 }
 
-.settings-profile-success {
-  color: #1f8a70;
-}
-
 .settings-profile-save {
   min-height: 34px;
+}
+
+.settings-app-version {
+  flex: 0 0 auto;
+  margin: 7px 0 0;
+  color: #7a928b;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .settings-panel .panel-action-buttons {
@@ -2387,7 +2526,7 @@ button:disabled {
 .settings-confirm-card {
   display: grid;
   gap: 12px;
-  width: min(100%, 184px);
+  width: min(100%, 244px);
   border: 1px solid #ffd8cf;
   border-radius: 14px;
   background: #fffdfb;
@@ -2402,6 +2541,7 @@ button:disabled {
   font-size: 13px;
   font-weight: 700;
   line-height: 1.35;
+  white-space: nowrap;
 }
 
 .settings-confirm-actions {
@@ -2416,22 +2556,100 @@ button:disabled {
   font-size: 12px;
 }
 
-.gomoku-right {
+.settings-detail-layer {
+  position: absolute;
+  inset: 8px;
+  z-index: 3;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.settings-detail-card {
+  display: grid;
+  gap: 11px;
+  width: min(100%, 420px);
+  max-height: min(100%, 430px);
+  overflow: hidden;
+  border: 1px solid #d8e9e1;
+  border-radius: 16px;
+  background: #fffefa;
+  box-shadow: 0 16px 32px rgba(33, 76, 63, 0.15);
+  padding: 12px;
+}
+
+.settings-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-detail-head h2 {
+  margin: 0;
+  color: #173f35;
+  font-size: 16px;
+}
+
+.settings-detail-head button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.settings-detail-body {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  overflow-y: auto;
+  color: #315a50;
+  font-size: 12px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 129, 112, 0.24) transparent;
+}
+
+.settings-detail-body p {
+  margin: 0;
+}
+
+.settings-detail-credit,
+.settings-detail-members {
+  border-radius: 12px;
+  background: #f3fbf7;
+  color: #1d705c;
+  padding: 8px;
+  font-weight: 750;
+}
+
+.settings-detail-members {
+  background: #fff6ef;
+  color: #8d5035;
+}
+
+.gomoku-right {
+  display: flex;
+  flex-direction: column;
   gap: 7px;
   overflow: hidden;
 }
 
 .gomoku-board {
+  flex: 0 0 auto;
   align-self: center;
   justify-self: center;
-  width: min(100%, 260px);
-  max-height: 100%;
+  width: min(100%, 310px);
+  max-width: 100%;
+  max-height: none;
+  aspect-ratio: 1 / 1;
+  margin-top: auto;
+  margin-bottom: auto;
 }
 
 .desktop-runtime .gomoku-layout {
-  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-columns: 150px minmax(0, 1fr);
 }
 
 .desktop-runtime .gomoku-right {
@@ -2439,7 +2657,7 @@ button:disabled {
 }
 
 .desktop-runtime .gomoku-board {
-  width: min(100%, 250px);
+  width: min(100%, 290px);
 }
 
 .avatar-widget.has-mood-prompt {

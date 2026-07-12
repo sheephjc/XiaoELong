@@ -20,6 +20,7 @@ const envSchema = z.object({
   MAX_CHAT_IMAGE_SIZE_MB: z.coerce.number().positive().default(5),
   MAX_CHAT_FILE_SIZE_MB: z.coerce.number().positive().default(50),
   UPLOAD_ROOT: z.string().trim().optional(),
+  UPDATE_ROOT: z.string().trim().optional(),
   DEEPSEEK_API_KEY: z.string().trim().optional(),
   DEEPSEEK_BASE_URL: z.string().trim().url().default("https://api.deepseek.com"),
   DEEPSEEK_MODEL: z.string().trim().min(1).default("deepseek-v4-flash"),

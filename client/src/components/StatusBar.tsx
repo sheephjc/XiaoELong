@@ -1,4 +1,4 @@
-import { KeyboardEvent, MouseEvent, useEffect, useRef, useState } from "react";
+import { KeyboardEvent, memo, MouseEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MoodEmoji, PresenceUser } from "@xiaoelong/shared";
 import { UserAvatar } from "./UserAvatar";
 
@@ -8,11 +8,46 @@ interface StatusBarProps {
   moodOptions: MoodEmoji[];
   moodLoading: boolean;
   onSelectMood: (emoji: MoodEmoji) => void | Promise<void>;
+  onExtraHeightChange?: (height: number) => void;
 }
 
-export function StatusBar(props: StatusBarProps): JSX.Element {
+export const StatusBar = memo(function StatusBar(props: StatusBarProps): JSX.Element {
   const [pickerOpen, setPickerOpen] = useState(false);
   const rootRef = useRef<HTMLElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const lastExtraHeightRef = useRef(-1);
+
+  useLayoutEffect(() => {
+    const listElement = listRef.current;
+    const onExtraHeightChange = props.onExtraHeightChange;
+    if (!listElement || !onExtraHeightChange) {
+      return;
+    }
+    const observedList: HTMLDivElement = listElement;
+    const reportHeight: (height: number) => void = onExtraHeightChange;
+
+    function reportExtraHeight(): void {
+      const children = Array.from(observedList.children) as HTMLElement[];
+      const singleRowHeight = children.reduce(
+        (maxHeight, child) => Math.max(maxHeight, child.getBoundingClientRect().height),
+        0
+      );
+      const extraHeight = singleRowHeight > 0
+        ? Math.max(0, Math.ceil(observedList.getBoundingClientRect().height - singleRowHeight))
+        : 0;
+      if (lastExtraHeightRef.current === extraHeight) {
+        return;
+      }
+
+      lastExtraHeightRef.current = extraHeight;
+      reportHeight(extraHeight);
+    }
+
+    const observer = new ResizeObserver(reportExtraHeight);
+    observer.observe(observedList);
+    reportExtraHeight();
+    return () => observer.disconnect();
+  }, [props.onExtraHeightChange]);
 
   useEffect(() => {
     if (!pickerOpen) {
@@ -57,7 +92,7 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
 
   return (
     <section className="status-bar" aria-label="成员状态" ref={rootRef}>
-      <div className="status-list">
+      <div className="status-list" ref={listRef}>
         {props.users.map((user) => {
           const isCurrentUser = user.id === props.currentUserId;
           return (
@@ -102,4 +137,4 @@ export function StatusBar(props: StatusBarProps): JSX.Element {
       </div>
     </section>
   );
-}
+});

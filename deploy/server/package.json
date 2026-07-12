@@ -1,0 +1,13 @@
+{
+  "name": "xiaoelong-server-deploy",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "db:init": "cd server && node dist/db/init.js",
+    "start": "cd server && node dist/index.js"
+  }
+}

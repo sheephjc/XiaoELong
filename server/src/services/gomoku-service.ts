@@ -186,19 +186,62 @@ export class GomokuService {
       throw new GomokuValidationError("Cannot invite yourself.");
     }
 
-    const boardState = JSON.stringify(createEmptyBoard());
-    const [result] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO gomoku_games
-       (status, invited_by, player_black, player_white, current_turn, winner, board_state)
-       VALUES ('invited', ?, ?, ?, NULL, NULL, ?)`,
-      [initiatorUserId, initiatorUserId, targetUserId, boardState]
-    );
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
 
-    const game = await loadGameById(result.insertId);
-    if (!game) {
-      throw new Error("Failed to create gomoku game.");
+      const [users] = await connection.query<Array<RowDataPacket & { id: string }>>(
+        `SELECT id
+         FROM users
+         WHERE id IN (?, ?)
+         ORDER BY id
+         FOR UPDATE`,
+        [initiatorUserId, targetUserId]
+      );
+      if (users.length !== 2) {
+        throw new GomokuValidationError("玩家不存在。");
+      }
+
+      const [activeGames] = await connection.query<Array<RowDataPacket & {
+        id: number;
+        status: "invited" | "playing";
+      }>>(
+        `SELECT id, status
+         FROM gomoku_games
+         WHERE status IN ('invited', 'playing')
+           AND ((player_black = ? AND player_white = ?)
+             OR (player_black = ? AND player_white = ?))
+         LIMIT 1
+         FOR UPDATE`,
+        [initiatorUserId, targetUserId, targetUserId, initiatorUserId]
+      );
+      if (activeGames.length > 0) {
+        throw new GomokuValidationError(
+          activeGames[0].status === "invited" ? "有未接受对局。" : "对局仍在进行中。"
+        );
+      }
+
+      const boardState = JSON.stringify(createEmptyBoard());
+      const [result] = await connection.execute<ResultSetHeader>(
+        `INSERT INTO gomoku_games
+         (status, invited_by, player_black, player_white, current_turn, winner, board_state)
+         VALUES ('invited', ?, ?, ?, NULL, NULL, ?)`,
+        [initiatorUserId, initiatorUserId, targetUserId, boardState]
+      );
+
+      const game = await loadGameById(result.insertId, connection);
+      if (!game) {
+        throw new Error("Failed to create gomoku game.");
+      }
+
+      await connection.commit();
+      return game;
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
-    return game;
   }
 
   async acceptInvite(gameId: number, userId: string): Promise<GomokuGame> {
@@ -220,6 +263,29 @@ export class GomokuService {
     const game = await loadGameById(gameId);
     if (!game) {
       throw new Error("Game not found after accept.");
+    }
+    return game;
+  }
+
+  async rejectInvite(gameId: number, userId: string): Promise<GomokuGame> {
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE gomoku_games
+       SET status = 'declined',
+           current_turn = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?
+         AND status = 'invited'
+         AND player_white = ?`,
+      [gameId, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      throw new GomokuValidationError("Invite cannot be rejected.");
+    }
+
+    const game = await loadGameById(gameId);
+    if (!game) {
+      throw new Error("Game not found after reject.");
     }
     return game;
   }

@@ -3,6 +3,7 @@ import type {
   GomokuAcceptPayload,
   GomokuInvitePayload,
   GomokuMovePayload,
+  GomokuRejectPayload,
   PresenceUser,
   ServerToClientEvents
 } from "@xiaoelong/shared";
@@ -215,6 +216,20 @@ export function setupSocket(
           return;
         }
         ack?.({ ok: false, error: "Failed to accept game invite." });
+      }
+    });
+
+    socket.on("gomoku:reject", async (payload: GomokuRejectPayload, ack) => {
+      try {
+        const game = await dependencies.gomokuService.rejectInvite(payload.gameId, userId);
+        emitGomokuUpdate(io, game);
+        ack?.({ ok: true, game });
+      } catch (error) {
+        if (error instanceof GomokuValidationError) {
+          ack?.({ ok: false, error: error.message });
+          return;
+        }
+        ack?.({ ok: false, error: "Failed to reject game invite." });
       }
     });
 

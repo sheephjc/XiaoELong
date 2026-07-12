@@ -8,6 +8,23 @@ interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
 
+type XiaoELongUpdateStatus =
+  | "idle"
+  | "checking"
+  | "available"
+  | "not-available"
+  | "downloading"
+  | "downloaded"
+  | "error"
+  | "unavailable";
+
+interface XiaoELongUpdateState {
+  status: XiaoELongUpdateStatus;
+  message: string;
+  version: string;
+  progress: number | null;
+}
+
 interface Window {
   readonly xiaoelongDesktop?: {
     readonly isDesktop: boolean;
@@ -16,10 +33,14 @@ interface Window {
     readonly toggleHomePanel?: () => void;
     readonly openSettingsPanel?: () => void;
     readonly notifyPanelReady?: () => void;
+    readonly setPanelContentExtraHeight?: (height: number) => void;
     readonly notifyLogin?: (token: string) => void;
+    readonly getPersistedAccessToken?: () => string | null;
+    readonly persistAccessToken?: (token: string) => void;
+    readonly clearPersistedAccessToken?: () => void;
     readonly hideAllWindows?: () => void;
-    readonly previewMoodPrompt?: () => void;
     readonly setMoodPromptVisible?: (visible: boolean) => void;
+    readonly setAvatarClickThrough?: (enabled: boolean) => void;
     readonly openImageViewer?: (payload: {
       images: Array<{
         url: string;
@@ -41,13 +62,17 @@ interface Window {
       openAtLogin: boolean;
       panelAlwaysOnTop: boolean;
     }>;
+    readonly getUpdateState?: () => Promise<XiaoELongUpdateState>;
+    readonly checkForUpdates?: () => Promise<XiaoELongUpdateState>;
+    readonly downloadUpdate?: () => Promise<XiaoELongUpdateState>;
+    readonly installUpdate?: () => Promise<XiaoELongUpdateState>;
+    readonly onUpdateState?: (callback: (state: XiaoELongUpdateState) => void) => () => void;
     readonly onPanelViewChange?: (callback: (view: "home" | "settings") => void) => () => void;
     readonly onSettingsChange?: (
       callback: (settings: { openAtLogin: boolean; panelAlwaysOnTop: boolean }) => void
     ) => () => void;
     readonly onLogout?: (callback: () => void) => () => void;
     readonly onLogin?: (callback: (token: string) => void) => () => void;
-    readonly onMoodPreview?: (callback: () => void) => () => void;
     readonly onPlacementChange?: (
       callback: (placement: "upper-left" | "upper-right" | "lower-left" | "lower-right") => void
     ) => () => void;

@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:3001 http://127.0.0.1:3001 data: blob:; img-src * data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' http://localhost:3001 http://127.0.0.1:3001 http://43.139.223.204:3001 data: blob:; img-src * data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline';" />
   <style>
     * { box-sizing: border-box; }
     body {
@@ -137,7 +137,7 @@
         image.alt = "";
         return;
       }
-      meta.textContent = (state.index + 1) + "/" + images.length + " · " + (current.userNickname || "");
+      meta.textContent = current.userNickname || "";
       caption.textContent = current.name || "";
       image.src = current.url;
       image.alt = current.name || "";

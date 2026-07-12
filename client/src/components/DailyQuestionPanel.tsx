@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type {
   DailyQuestionResult,
   DailyQuestionStats,
@@ -52,7 +53,7 @@ function ClockVisual(props: { visual: Extract<DailyQuestionVisual, { type: "cloc
   ] as const;
 
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="钟表附图">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="钟表附图">
       <circle cx="180" cy="112" r="88" className="visual-surface" />
       <circle cx="180" cy="112" r="72" className="visual-guide" />
       {labels.map(([x, y, label]) => (
@@ -70,7 +71,7 @@ function ClockVisual(props: { visual: Extract<DailyQuestionVisual, { type: "cloc
 function Venn2Visual(props: { visual: Extract<DailyQuestionVisual, { type: "venn2" }> }): JSX.Element {
   const { leftLabel, rightLabel, leftOnly, both, rightOnly, outside } = props.visual.data;
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="双集合韦恩图">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="双集合韦恩图">
       <rect x="30" y="36" width="300" height="150" rx="12" className="visual-frame" />
       <circle cx="145" cy="112" r="72" className="visual-venn-left" />
       <circle cx="215" cy="112" r="72" className="visual-venn-right" />
@@ -110,7 +111,7 @@ function PathGridVisual(props: { visual: Extract<DailyQuestionVisual, { type: "p
   const end = point(endRow, endCol);
 
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="路径网格图">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="路径网格图">
       {Array.from({ length: rows }, (_, row) => (
         <line key={`r-${row}`} x1={startX} y1={startY + row * size} x2={startX + width} y2={startY + row * size} className="visual-grid-line" />
       ))}
@@ -136,7 +137,7 @@ function BarChartVisual(props: { visual: Extract<DailyQuestionVisual, { type: "b
   const firstX = (360 - totalWidth) / 2;
 
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="柱状图">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="柱状图">
       {props.visual.data.title ? <text x="180" y="28" className="visual-label" textAnchor="middle">{props.visual.data.title}</text> : null}
       <line x1="54" y1={chartBottom} x2="306" y2={chartBottom} className="visual-axis" />
       {items.map((item, index) => {
@@ -160,16 +161,16 @@ function LogicTableVisual(props: { visual: Extract<DailyQuestionVisual, { type: 
   const roles = props.visual.data.roles.slice(0, 4);
   const cellWidth = 240 / Math.max(roles.length, 1);
   const cellHeight = 34;
-  const tableX = 60;
   const tableY = 36;
   const tableWidth = 60 + roles.length * cellWidth;
+  const tableX = (360 - tableWidth) / 2;
 
   function findMark(person: string, role: string): boolean | null {
     return props.visual.data.marks.find((mark) => mark.person === person && mark.role === role)?.value ?? null;
   }
 
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="逻辑表格">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="逻辑表格">
       <rect x={tableX} y={tableY} width={tableWidth} height={(people.length + 1) * cellHeight} rx="10" className="visual-frame" />
       {roles.map((role, index) => (
         <text key={role} x={tableX + 60 + index * cellWidth + cellWidth / 2} y={tableY + 22} className="visual-label" textAnchor="middle">
@@ -215,7 +216,7 @@ function TriangleVisual(props: { visual: Extract<DailyQuestionVisual, { type: "t
   const unknownPosition = unknownPoint ? unknownPositions[unknownPoint] : null;
 
   return (
-    <svg className="question-visual-svg" viewBox="0 0 360 220" role="img" aria-label="三角形图">
+    <svg className="question-visual-svg" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet" role="img" aria-label="三角形图">
       <polygon points="180,32 82,178 278,178" className="visual-triangle" />
       <text x="180" y="22" className="visual-point-label" textAnchor="middle">{a}</text>
       <text x="64" y="198" className="visual-point-label" textAnchor="middle">{b}</text>
@@ -315,7 +316,7 @@ function renderStats(
   );
 }
 
-export function DailyQuestionPanel(props: DailyQuestionPanelProps): JSX.Element {
+export const DailyQuestionPanel = memo(function DailyQuestionPanel(props: DailyQuestionPanelProps): JSX.Element {
   if (props.loading) {
     return (
       <section className="module-card daily-card">
@@ -378,4 +379,4 @@ export function DailyQuestionPanel(props: DailyQuestionPanelProps): JSX.Element 
       </div>
     </section>
   );
-}
+});

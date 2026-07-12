@@ -2,6 +2,18 @@ const { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } = require
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { autoUpdater } = require("electron-updater");
+
+const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
+app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
+if (isDevelopment) {
+  app.setPath("userData", path.join(app.getPath("appData"), "XiaoELong-dev"));
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 const AUTH_WIDTH = 440;
 const AUTH_HEIGHT = 520;
@@ -16,6 +28,7 @@ const IMAGE_VIEWER_WIDTH = 840;
 const IMAGE_VIEWER_HEIGHT = 640;
 const PANEL_GAP = 12;
 const PANEL_READY_FALLBACK_MS = 150;
+const MAX_PANEL_CONTENT_EXTRA_HEIGHT = 300;
 const DESKTOP_MARGIN_RIGHT = 28;
 const DESKTOP_MARGIN_BOTTOM = 34;
 
@@ -25,7 +38,7 @@ let panelWindow = null;
 let imageViewerWindow = null;
 let tray = null;
 let serverProcess = null;
-let dragOffset = null;
+let avatarDragState = null;
 let panelOpen = false;
 let panelPlacement = "upper-left";
 let currentWindowMode = "auth";
@@ -34,15 +47,60 @@ let panelAlwaysOnTop = true;
 let panelRendererReady = false;
 let pendingPanelShow = false;
 let panelReadyFallbackTimer = null;
+let panelRecoveryTimer = null;
+let panelRecoveryAttempts = 0;
+let panelContentExtraHeight = 0;
 let avatarMoodPromptVisible = false;
+let avatarClickThrough = false;
 let imageViewerState = {
   images: [],
   index: 0
 };
 let imageViewerReady = false;
+let updateState = {
+  status: "idle",
+  message: "",
+  version: app.getVersion(),
+  progress: null
+};
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(value, max));
+}
+
+function getSessionFilePath() {
+  return path.join(app.getPath("userData"), "session.json");
+}
+
+function readPersistedAccessToken() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getSessionFilePath(), "utf8"));
+    return typeof parsed?.accessToken === "string" && parsed.accessToken.length > 0
+      ? parsed.accessToken
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistAccessToken(token) {
+  if (typeof token !== "string" || token.length === 0 || token.length > 8192) {
+    return;
+  }
+
+  const sessionFile = getSessionFilePath();
+  const temporaryFile = `${sessionFile}.tmp`;
+  fs.mkdirSync(path.dirname(sessionFile), { recursive: true });
+  fs.writeFileSync(temporaryFile, JSON.stringify({ accessToken: token }), "utf8");
+  fs.renameSync(temporaryFile, sessionFile);
+}
+
+function clearPersistedAccessToken() {
+  try {
+    fs.rmSync(getSessionFilePath(), { force: true });
+  } catch (error) {
+    console.error("[Electron] Failed to clear persisted login.", error);
+  }
 }
 
 function getBottomRightBounds(width, height) {
@@ -80,12 +138,13 @@ function clampBoundsToWorkArea(bounds) {
   };
 }
 
-function clampAvatarBounds(bounds) {
-  const display = screen.getDisplayMatching(bounds);
+function clampAvatarBounds(bounds, cursorPoint = null) {
+  const display = cursorPoint ? screen.getDisplayNearestPoint(cursorPoint) : screen.getDisplayMatching(bounds);
   const workArea = display.workArea;
   const avatarSize = getAvatarSize();
+  const hiddenLeftWidth = avatarMoodPromptVisible ? 0 : Math.max(0, avatarSize.width - AVATAR_WIDTH);
   return {
-    x: clamp(bounds.x, workArea.x, workArea.x + workArea.width - avatarSize.width),
+    x: clamp(bounds.x, workArea.x - hiddenLeftWidth, workArea.x + workArea.width - avatarSize.width),
     y: clamp(bounds.y, workArea.y, workArea.y + workArea.height - avatarSize.height),
     width: avatarSize.width,
     height: avatarSize.height
@@ -94,7 +153,7 @@ function clampAvatarBounds(bounds) {
 
 function getAvatarSize() {
   return {
-    width: AVATAR_MOOD_WIDTH,
+    width: avatarMoodPromptVisible ? AVATAR_MOOD_WIDTH : AVATAR_WIDTH,
     height: AVATAR_HEIGHT
   };
 }
@@ -117,10 +176,51 @@ function setAvatarMoodPromptVisible(visible) {
     return;
   }
 
+  const mascotBounds = getMascotBoundsFromAvatarWindow();
   avatarMoodPromptVisible = visible;
+  if (avatarWindow && !avatarWindow.isDestroyed()) {
+    const currentBounds = avatarWindow.getBounds();
+    const avatarSize = getAvatarSize();
+    const nextBounds = clampAvatarBounds({
+      x: mascotBounds ? mascotBounds.x - (avatarSize.width - AVATAR_WIDTH) : currentBounds.x,
+      y: currentBounds.y,
+      width: avatarSize.width,
+      height: avatarSize.height
+    });
+    if (
+      currentBounds.x !== nextBounds.x ||
+      currentBounds.y !== nextBounds.y ||
+      currentBounds.width !== nextBounds.width ||
+      currentBounds.height !== nextBounds.height
+    ) {
+      avatarWindow.setBounds(nextBounds, false);
+    }
+  }
   if (panelOpen) {
     updatePanelBounds();
   }
+}
+
+function setAvatarClickThrough(enabled) {
+  const nextEnabled = Boolean(enabled);
+  if (avatarDragState && nextEnabled) {
+    return;
+  }
+  if (avatarClickThrough === nextEnabled) {
+    return;
+  }
+
+  avatarClickThrough = nextEnabled;
+  if (!avatarWindow || avatarWindow.isDestroyed()) {
+    return;
+  }
+
+  if (avatarClickThrough) {
+    avatarWindow.setIgnoreMouseEvents(true, { forward: true });
+    return;
+  }
+
+  avatarWindow.setIgnoreMouseEvents(false);
 }
 
 function choosePanelPlacement(avatarBounds) {
@@ -145,7 +245,7 @@ function getPanelSize(avatarBounds) {
 
   return {
     width: Math.min(PANEL_WIDTH, Math.max(320, workArea.width - AVATAR_WIDTH - PANEL_GAP - 24)),
-    height: Math.min(PANEL_HEIGHT, Math.max(420, workArea.height - 16))
+    height: Math.min(PANEL_HEIGHT + panelContentExtraHeight, Math.max(420, workArea.height - 16))
   };
 }
 
@@ -197,7 +297,7 @@ function getWebPreferences(role) {
     preload: path.join(__dirname, "preload.js"),
     contextIsolation: true,
     nodeIntegration: false,
-    backgroundThrottling: false,
+    backgroundThrottling: role !== "panel",
     additionalArguments: [`--xiaoelong-role=${role}`]
   };
 }
@@ -227,6 +327,78 @@ function broadcastSettings() {
   sendToRenderers("desktop:settings", getDesktopSettings());
 }
 
+function getPublicUpdateState() {
+  return { ...updateState };
+}
+
+function setUpdateState(patch) {
+  updateState = {
+    ...updateState,
+    ...patch
+  };
+  sendToRenderers("updates:state", getPublicUpdateState());
+}
+
+function canUseAutoUpdater() {
+  return app.isPackaged && !process.env.ELECTRON_START_URL;
+}
+
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+
+  autoUpdater.on("checking-for-update", () => {
+    setUpdateState({
+      status: "checking",
+      message: "正在检查更新...",
+      progress: null
+    });
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    setUpdateState({
+      status: "available",
+      message: `发现新版本 ${info.version}。`,
+      version: info.version,
+      progress: null
+    });
+  });
+
+  autoUpdater.on("update-not-available", (info) => {
+    setUpdateState({
+      status: "not-available",
+      message: `已是最新版本 ${info.version || app.getVersion()}。`,
+      version: info.version || app.getVersion(),
+      progress: null
+    });
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    setUpdateState({
+      status: "downloading",
+      message: `正在下载更新 ${Math.round(progress.percent)}%...`,
+      progress: Math.round(progress.percent)
+    });
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    setUpdateState({
+      status: "downloaded",
+      message: `新版本 ${info.version} 已下载，重启后安装。`,
+      version: info.version,
+      progress: 100
+    });
+  });
+
+  autoUpdater.on("error", (error) => {
+    setUpdateState({
+      status: "error",
+      message: error instanceof Error ? error.message : "检查更新失败。",
+      progress: null
+    });
+  });
+}
+
 function setPanelAlwaysOnTop(enabled) {
   panelAlwaysOnTop = enabled;
   if (panelWindow && !panelWindow.isDestroyed()) {
@@ -241,9 +413,11 @@ function parkPanelWindow() {
   }
 
   panelWindow.setIgnoreMouseEvents(true);
-  panelWindow.setOpacity(0);
-  if (!panelWindow.isVisible()) {
-    panelWindow.showInactive();
+  if (panelWindow.isVisible()) {
+    panelWindow.hide();
+  }
+  if (!panelWindow.webContents.isDestroyed()) {
+    panelWindow.webContents.setBackgroundThrottling(false);
   }
 }
 
@@ -253,7 +427,9 @@ function revealPanelWindow() {
   }
 
   panelWindow.setIgnoreMouseEvents(false);
-  panelWindow.setOpacity(1);
+  if (!panelWindow.webContents.isDestroyed()) {
+    panelWindow.webContents.setBackgroundThrottling(false);
+  }
   if (!panelWindow.isVisible()) {
     panelWindow.show();
     return;
@@ -284,6 +460,41 @@ function clearPanelReadyFallback() {
   }
 }
 
+function clearPanelRecoveryTimer() {
+  if (panelRecoveryTimer) {
+    clearTimeout(panelRecoveryTimer);
+    panelRecoveryTimer = null;
+  }
+}
+
+function schedulePanelRecovery(reason) {
+  if (!panelWindow || panelWindow.isDestroyed() || panelWindow.webContents.isDestroyed() || panelRecoveryTimer) {
+    return;
+  }
+
+  const recoveringWindow = panelWindow;
+  panelRecoveryAttempts += 1;
+  panelRendererReady = false;
+  pendingPanelShow = panelOpen;
+  clearPanelReadyFallback();
+  parkPanelWindow();
+
+  const delay = Math.min(250 * panelRecoveryAttempts, 1500);
+  console.error(`[Electron] Recovering panel renderer (${reason}), attempt ${panelRecoveryAttempts}.`);
+  panelRecoveryTimer = setTimeout(() => {
+    panelRecoveryTimer = null;
+    if (
+      !panelWindow ||
+      panelWindow !== recoveringWindow ||
+      panelWindow.isDestroyed() ||
+      panelWindow.webContents.isDestroyed()
+    ) {
+      return;
+    }
+    panelWindow.webContents.reload();
+  }, delay);
+}
+
 function schedulePanelReadyFallback() {
   clearPanelReadyFallback();
   panelReadyFallbackTimer = setTimeout(() => {
@@ -299,38 +510,60 @@ function schedulePanelReadyFallback() {
   }, PANEL_READY_FALLBACK_MS);
 }
 
-function findTrayIconPath() {
-  const appPath = app.getAppPath();
-  const sourceIconPath = path.join(appPath, "client", "src", "assets", "xiaoelong-mascot-test.png");
-  if (fs.existsSync(sourceIconPath)) {
-    return sourceIconPath;
+function findTrayIconPaths() {
+  const projectRoot = path.resolve(__dirname, "..");
+  const iconPaths = [
+    path.join(__dirname, "assets", "xiaoelong-tray-icon.ico"),
+    path.join(__dirname, "assets", "xiaoelong-tray-icon.png"),
+    path.join(projectRoot, "client", "src", "assets", "xiaoelong-mascot.png")
+  ];
+
+  const distAssetsPath = path.join(projectRoot, "client", "dist", "assets");
+  if (fs.existsSync(distAssetsPath)) {
+    const iconFile = fs
+      .readdirSync(distAssetsPath)
+      .find((fileName) => /^xiaoelong-mascot(?!-hitmask).*\.png$/i.test(fileName));
+    if (iconFile) {
+      iconPaths.push(path.join(distAssetsPath, iconFile));
+    }
   }
 
-  const distAssetsPath = path.join(appPath, "client", "dist", "assets");
-  if (!fs.existsSync(distAssetsPath)) {
-    return null;
-  }
-
-  const iconFile = fs
-    .readdirSync(distAssetsPath)
-    .find((fileName) => /^xiaoelong-mascot-test.*\.png$/i.test(fileName));
-  return iconFile ? path.join(distAssetsPath, iconFile) : null;
+  return iconPaths;
 }
 
 function getTrayIcon() {
-  const iconPath = findTrayIconPath();
-  if (!iconPath) {
-    return nativeImage.createEmpty();
+  const iconPaths = findTrayIconPaths();
+  for (const iconPath of iconPaths) {
+    if (!fs.existsSync(iconPath)) {
+      continue;
+    }
+
+    const icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+      console.warn(`[Electron] Unable to decode tray icon: ${iconPath}`);
+      continue;
+    }
+
+    if (iconPath.toLowerCase().endsWith(".ico")) {
+      return icon;
+    }
+
+    return icon.resize({
+      width: 16,
+      height: 16,
+      quality: "best"
+    });
   }
 
-  return nativeImage.createFromPath(iconPath).resize({
-    width: 16,
-    height: 16
-  });
+  console.error(`[Electron] No usable tray icon found. Checked: ${iconPaths.join(", ")}`);
+  return nativeImage.createEmpty();
 }
 
 function hideAllWindows() {
-  for (const targetWindow of [authWindow, avatarWindow, panelWindow, imageViewerWindow]) {
+  pendingPanelShow = false;
+  clearPanelReadyFallback();
+  parkPanelWindow();
+  for (const targetWindow of [authWindow, avatarWindow, imageViewerWindow]) {
     if (targetWindow && !targetWindow.isDestroyed()) {
       targetWindow.hide();
     }
@@ -431,7 +664,7 @@ function createAvatarWindow() {
   const avatarSize = getAvatarSize();
   avatarWindow = new BrowserWindow({
     ...getBottomRightBounds(avatarSize.width, avatarSize.height),
-    minWidth: AVATAR_MOOD_WIDTH,
+    minWidth: AVATAR_WIDTH,
     minHeight: AVATAR_HEIGHT,
     frame: false,
     transparent: true,
@@ -452,6 +685,8 @@ function createAvatarWindow() {
   });
   avatarWindow.on("closed", () => {
     avatarWindow = null;
+    avatarClickThrough = false;
+    avatarDragState = null;
   });
   return avatarWindow;
 }
@@ -470,8 +705,8 @@ function createPanelWindow() {
     minWidth: 300,
     minHeight: 150,
     frame: false,
-    transparent: true,
-    backgroundColor: "#00000000",
+    transparent: false,
+    backgroundColor: "#ffffff",
     resizable: false,
     alwaysOnTop: panelAlwaysOnTop,
     skipTaskbar: true,
@@ -480,18 +715,40 @@ function createPanelWindow() {
     webPreferences: getWebPreferences("panel")
   });
 
-  panelWindow.setOpacity(0);
   panelWindow.setIgnoreMouseEvents(true);
   loadRenderer(panelWindow, "panel");
-  panelWindow.webContents.once("did-finish-load", () => {
+  panelWindow.webContents.on("did-finish-load", () => {
+    panelRecoveryAttempts = 0;
+    clearPanelRecoveryTimer();
     sendPanelView();
     broadcastSettings();
+    if (panelOpen && pendingPanelShow) {
+      showPanelWhenReady();
+    }
+  });
+  panelWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, _validatedUrl, isMainFrame) => {
+    if (isMainFrame && errorCode !== -3) {
+      schedulePanelRecovery(`load failed: ${errorDescription} (${errorCode})`);
+    }
+  });
+  panelWindow.webContents.on("render-process-gone", (_event, details) => {
+    schedulePanelRecovery(`renderer ${details.reason}`);
+  });
+  panelWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    if (level >= 2) {
+      console.error(`[Electron][Panel] ${message} (${sourceId}:${line})`);
+    }
+  });
+  panelWindow.on("unresponsive", () => {
+    schedulePanelRecovery("window unresponsive");
   });
   panelWindow.on("closed", () => {
     panelWindow = null;
     panelRendererReady = false;
     pendingPanelShow = false;
     clearPanelReadyFallback();
+    clearPanelRecoveryTimer();
+    panelRecoveryAttempts = 0;
   });
   return panelWindow;
 }
@@ -621,9 +878,7 @@ function showAuthMode() {
   if (avatarWindow) {
     avatarWindow.hide();
   }
-  if (panelWindow) {
-    panelWindow.hide();
-  }
+  parkPanelWindow();
   createAuthWindow().show();
 }
 
@@ -688,6 +943,9 @@ function startEmbeddedServer() {
   if (process.env.ELECTRON_START_URL) {
     return;
   }
+  if (process.env.XIAOELONG_EMBEDDED_SERVER !== "1") {
+    return;
+  }
 
   const serverEntry = getServerEntryPath();
   serverProcess = spawn(process.execPath, [serverEntry], {
@@ -720,9 +978,21 @@ function stopEmbeddedServer() {
 }
 
 app.whenReady().then(() => {
+  setupAutoUpdater();
   startEmbeddedServer();
   createTray();
   createAuthWindow();
+});
+
+app.on("second-instance", () => {
+  const targetWindow = panelWindow ?? avatarWindow ?? authWindow;
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    return;
+  }
+  if (!targetWindow.isVisible()) {
+    targetWindow.show();
+  }
+  targetWindow.focus();
 });
 
 ipcMain.on("desktop:window-mode", (_event, mode) => {
@@ -744,8 +1014,33 @@ ipcMain.on("desktop:panel-ready", (event) => {
   }
 });
 
+ipcMain.on("desktop:panel-content-extra-height", (event, height) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return;
+  }
+
+  const numericHeight = Number(height);
+  if (!Number.isFinite(numericHeight)) {
+    return;
+  }
+
+  const nextHeight = clamp(Math.round(numericHeight), 0, MAX_PANEL_CONTENT_EXTRA_HEIGHT);
+  if (panelContentExtraHeight === nextHeight) {
+    return;
+  }
+
+  panelContentExtraHeight = nextHeight;
+  if (currentPanelView === "home") {
+    updatePanelBounds();
+  }
+});
+
 ipcMain.on("desktop:toggle-home", () => {
-  if (currentWindowMode === "expanded" && currentPanelView === "home" && panelWindow?.isVisible()) {
+  if (
+    currentWindowMode === "expanded" &&
+    currentPanelView === "home" &&
+    (panelWindow?.isVisible() || pendingPanelShow)
+  ) {
     currentWindowMode = "collapsed";
     showCollapsedMode();
     return;
@@ -756,7 +1051,11 @@ ipcMain.on("desktop:toggle-home", () => {
 });
 
 ipcMain.on("desktop:open-settings", () => {
-  if (currentWindowMode === "expanded" && currentPanelView === "settings" && panelWindow?.isVisible()) {
+  if (
+    currentWindowMode === "expanded" &&
+    currentPanelView === "settings" &&
+    (panelWindow?.isVisible() || pendingPanelShow)
+  ) {
     currentWindowMode = "collapsed";
     showCollapsedMode();
     return;
@@ -790,19 +1089,33 @@ ipcMain.on("desktop:image-viewer-next", () => {
 
 ipcMain.on("desktop:login", (_event, token) => {
   if (typeof token === "string" && token.length > 0) {
+    persistAccessToken(token);
     sendToRenderers("desktop:login", token);
   }
 });
 
-ipcMain.on("desktop:mood-preview", () => {
-  sendToRenderers("desktop:mood-preview");
+ipcMain.on("desktop:session-token:get", (event) => {
+  event.returnValue = readPersistedAccessToken();
+});
+
+ipcMain.on("desktop:session-token:set", (_event, token) => {
+  persistAccessToken(token);
+});
+
+ipcMain.on("desktop:session-token:clear", () => {
+  clearPersistedAccessToken();
 });
 
 ipcMain.on("desktop:mood-prompt-visible", (_event, visible) => {
   setAvatarMoodPromptVisible(Boolean(visible));
 });
 
+ipcMain.on("desktop:avatar-click-through", (_event, enabled) => {
+  setAvatarClickThrough(Boolean(enabled));
+});
+
 ipcMain.on("desktop:logout", () => {
+  clearPersistedAccessToken();
   sendToRenderers("desktop:logout");
   currentWindowMode = "auth";
   showAuthMode();
@@ -823,30 +1136,74 @@ ipcMain.handle("desktop:settings:set-panel-always-on-top", (_event, enabled) => 
   return getDesktopSettings();
 });
 
-ipcMain.on("desktop:drag-start", () => {
-  if (!avatarWindow) {
+ipcMain.handle("updates:get-state", () => getPublicUpdateState());
+
+ipcMain.handle("updates:check", async () => {
+  if (!canUseAutoUpdater()) {
+    return getPublicUpdateState();
+  }
+
+  await autoUpdater.checkForUpdates();
+  return getPublicUpdateState();
+});
+
+ipcMain.handle("updates:download", async () => {
+  if (!canUseAutoUpdater()) {
+    return getPublicUpdateState();
+  }
+
+  setUpdateState({
+    status: "downloading",
+    message: "正在下载更新...",
+    progress: 0
+  });
+  await autoUpdater.downloadUpdate();
+  return getPublicUpdateState();
+});
+
+ipcMain.handle("updates:install", () => {
+  if (updateState.status !== "downloaded") {
+    return getPublicUpdateState();
+  }
+  autoUpdater.quitAndInstall(false, true);
+  return getPublicUpdateState();
+});
+
+ipcMain.on("desktop:drag-start", (event) => {
+  if (!avatarWindow || avatarWindow.isDestroyed() || event.sender !== avatarWindow.webContents) {
     return;
   }
-  const cursor = screen.getCursorScreenPoint();
+  setAvatarClickThrough(false);
   const bounds = avatarWindow.getBounds();
-  dragOffset = {
-    x: cursor.x - bounds.x,
-    y: cursor.y - bounds.y
+  const cursor = screen.getCursorScreenPoint();
+  avatarDragState = {
+    cursorStart: cursor,
+    cursorLast: cursor,
+    windowStart: { x: bounds.x, y: bounds.y }
   };
 });
 
-ipcMain.on("desktop:drag-move", () => {
-  if (!avatarWindow || !dragOffset) {
+ipcMain.on("desktop:drag-move", (event) => {
+  if (!avatarWindow || avatarWindow.isDestroyed() || event.sender !== avatarWindow.webContents || !avatarDragState) {
     return;
   }
   const cursor = screen.getCursorScreenPoint();
+  if (cursor.x === avatarDragState.cursorLast.x && cursor.y === avatarDragState.cursorLast.y) {
+    return;
+  }
+  avatarDragState.cursorLast = cursor;
   const avatarSize = getAvatarSize();
   const nextAvatarBounds = clampAvatarBounds({
-    x: cursor.x - dragOffset.x,
-    y: cursor.y - dragOffset.y,
+    x: avatarDragState.windowStart.x + cursor.x - avatarDragState.cursorStart.x,
+    y: avatarDragState.windowStart.y + cursor.y - avatarDragState.cursorStart.y,
     width: avatarSize.width,
     height: avatarSize.height
-  });
+  }, cursor);
+
+  const currentBounds = avatarWindow.getBounds();
+  if (currentBounds.x === nextAvatarBounds.x && currentBounds.y === nextAvatarBounds.y) {
+    return;
+  }
 
   avatarWindow.setBounds(nextAvatarBounds, false);
   if (panelOpen) {
@@ -854,8 +1211,14 @@ ipcMain.on("desktop:drag-move", () => {
   }
 });
 
-ipcMain.on("desktop:drag-end", () => {
-  dragOffset = null;
+ipcMain.on("desktop:drag-end", (event) => {
+  if (avatarWindow && !avatarWindow.isDestroyed() && event.sender !== avatarWindow.webContents) {
+    return;
+  }
+  avatarDragState = null;
+  if (panelOpen) {
+    updatePanelBounds();
+  }
 });
 
 app.on("window-all-closed", () => {

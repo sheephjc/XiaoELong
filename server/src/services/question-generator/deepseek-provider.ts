@@ -3,6 +3,62 @@ import { env } from "../../config/env.js";
 import type { QuestionGenerateInput, QuestionGenerateOutput, QuestionGeneratorProvider } from "./provider.js";
 import { MockQuestionGeneratorProvider } from "./mock-provider.js";
 
+const MAX_GENERATION_ATTEMPTS = 3;
+const REQUEST_TIMEOUT_MS = 45_000;
+const RETRYABLE_STATUS_CODES = new Set([408, 409, 429, 500, 502, 503, 504]);
+
+class DeepSeekRequestError extends Error {
+  constructor(message: string, readonly retryable = true) {
+    super(message);
+  }
+}
+
+function waitBeforeRetry(attempt: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, attempt * 500));
+}
+
+function parseGeneratedContent(content: string): unknown {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new DeepSeekRequestError("DeepSeek returned empty content.");
+  }
+
+  const withoutFence = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  try {
+    return JSON.parse(withoutFence) as unknown;
+  } catch {
+    const firstBrace = withoutFence.indexOf("{");
+    const lastBrace = withoutFence.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      try {
+        return JSON.parse(withoutFence.slice(firstBrace, lastBrace + 1)) as unknown;
+      } catch {
+        // Report one stable error below so the provider can retry.
+      }
+    }
+    throw new DeepSeekRequestError("DeepSeek returned invalid JSON.");
+  }
+}
+
+function formatAttemptError(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    const firstIssue = error.issues[0];
+    return firstIssue ? `Generated JSON validation failed at ${firstIssue.path.join(".") || "root"}: ${firstIssue.message}` : "Generated JSON validation failed.";
+  }
+  if (error instanceof Error) {
+    const cause = "cause" in error && error.cause instanceof Error ? error.cause : null;
+    const causeCode = cause && "code" in cause ? String(cause.code) : null;
+    if (cause) {
+      return `${error.message} (${causeCode ? `${causeCode}: ` : ""}${cause.message})`;
+    }
+    return error.message;
+  }
+  return "Unknown DeepSeek error.";
+}
+
 const visualSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("clock"),
@@ -112,7 +168,7 @@ export class DeepSeekQuestionGeneratorProvider implements QuestionGeneratorProvi
             ...input.avoidQuestions.map((question) => `- ${question}`)
           ]
         : [];
-    const prompt = [
+    const basePrompt = [
       "请为一个中文朋友群桌面小组件生成一道“每日一题”。必须输出严格 JSON。",
       "题目要求：",
       "- 中文四选一题，受众是大学生；难度中等偏上，不要幼稚、低龄、送分或纯玩笑。",
@@ -140,56 +196,100 @@ export class DeepSeekQuestionGeneratorProvider implements QuestionGeneratorProvi
     ].join("\n");
 
     const url = new URL("chat/completions", this.baseUrl.endsWith("/") ? this.baseUrl : `${this.baseUrl}/`);
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          {
-            role: "system",
-            content: "你是一个严格输出 JSON 的中文出题助手。"
+    const attemptErrors: string[] = [];
+
+    for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      const useJsonMode = attempt < MAX_GENERATION_ATTEMPTS;
+      const retryInstruction = attempt === 1
+        ? ""
+        : `\n\n这是第 ${attempt} 次生成尝试。请更换题目内容，并直接输出一个完整 JSON 对象，不要输出 Markdown 或解释性前缀。`;
+
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`
           },
-          {
-            role: "user",
-            content: prompt
-          }
-        ],
-        response_format: {
-          type: "json_object"
-        },
-        temperature: 0.78,
-        max_tokens: 1000,
-        stream: false
-      })
-    });
+          body: JSON.stringify({
+            model: this.model,
+            messages: [
+              {
+                role: "system",
+                content: "你是一个严格输出 JSON 的中文出题助手。最终回答只能包含一个完整 JSON 对象。"
+              },
+              {
+                role: "user",
+                content: `${basePrompt}${retryInstruction}`
+              }
+            ],
+            thinking: {
+              type: "disabled"
+            },
+            ...(useJsonMode ? { response_format: { type: "json_object" } } : {}),
+            temperature: 0.72,
+            max_tokens: 1400,
+            stream: false
+          }),
+          signal: controller.signal
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`DeepSeek generation failed: ${response.status} ${errorText}`);
+        if (!response.ok) {
+          const errorText = (await response.text()).slice(0, 600);
+          throw new DeepSeekRequestError(
+            `DeepSeek request failed: ${response.status}${errorText ? ` ${errorText}` : ""}`,
+            RETRYABLE_STATUS_CODES.has(response.status)
+          );
+        }
+
+        const json = (await response.json()) as {
+          choices?: Array<{
+            finish_reason?: string | null;
+            message?: { content?: string | null; reasoning_content?: string | null };
+          }>;
+        };
+        const choice = json.choices?.[0];
+        const content = choice?.message?.content;
+        if (!content) {
+          throw new DeepSeekRequestError(
+            `DeepSeek returned no final content${choice?.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : ""}.`
+          );
+        }
+
+        const generated = generatedSchema.parse(parseGeneratedContent(content));
+        return {
+          ...generated,
+          visual: generated.visual ?? null,
+          sourceContext: JSON.stringify({
+            provider: "deepseek",
+            model: this.model,
+            date: input.date,
+            thinking: "disabled",
+            attempt
+          })
+        };
+      } catch (error) {
+        const message = error instanceof Error && error.name === "AbortError"
+          ? `DeepSeek request timed out after ${REQUEST_TIMEOUT_MS / 1000} seconds.`
+          : formatAttemptError(error);
+        attemptErrors.push(message);
+
+        const retryable = !(error instanceof DeepSeekRequestError) || error.retryable;
+        if (!retryable || attempt === MAX_GENERATION_ATTEMPTS) {
+          break;
+        }
+        console.warn(`[DailyQuestion] DeepSeek attempt ${attempt} failed: ${message}`);
+        await waitBeforeRetry(attempt);
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
-    const json = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>;
-    };
-    const content = json.choices?.[0]?.message?.content;
-    if (!content) {
-      throw new Error("DeepSeek did not return content.");
-    }
-
-    const generated = generatedSchema.parse(JSON.parse(content) as unknown);
-    return {
-      ...generated,
-      visual: generated.visual ?? null,
-      sourceContext: JSON.stringify({
-        provider: "deepseek",
-        model: this.model,
-        date: input.date
-      })
-    };
+    throw new Error(
+      `DeepSeek generation failed after ${attemptErrors.length} attempt(s): ${attemptErrors.at(-1) ?? "unknown error"}`
+    );
   }
 }
 

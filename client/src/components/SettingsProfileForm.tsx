@@ -42,6 +42,8 @@ export function SettingsProfileForm(props: SettingsProfileFormProps): JSX.Elemen
   }
 
   const hasChanges = nickname.trim() !== props.user.nickname || avatarFile !== null;
+  const showSaved = props.saved && !props.error && !hasChanges;
+  const saveLabel = props.loading ? "保存中" : showSaved ? "已保存" : "保存资料";
 
   return (
     <form className="settings-profile-form" onSubmit={handleSubmit}>
@@ -84,10 +86,8 @@ export function SettingsProfileForm(props: SettingsProfileFormProps): JSX.Elemen
       </label>
 
       {props.error ? <p className="error-text settings-profile-message">{props.error}</p> : null}
-      {props.saved && !props.error ? <p className="settings-profile-success">已保存</p> : null}
-
       <button type="submit" className="primary-soft-button settings-profile-save" disabled={props.loading || !hasChanges}>
-        {props.loading ? "保存中" : "保存资料"}
+        {saveLabel}
       </button>
     </form>
   );

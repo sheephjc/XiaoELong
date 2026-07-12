@@ -14,6 +14,10 @@ const acceptSchema = z.object({
   gameId: z.coerce.number().int().positive()
 });
 
+const rejectSchema = z.object({
+  gameId: z.coerce.number().int().positive()
+});
+
 const moveSchema = z.object({
   gameId: z.coerce.number().int().positive(),
   row: z.coerce.number().int().min(0).max(14),
@@ -79,6 +83,31 @@ export function createGomokuRouter(
 
     try {
       const game = await service.acceptInvite(parsed.data.gameId, req.user.id);
+      emitGomokuUpdate(io, game);
+      res.json({ game });
+    } catch (error) {
+      if (error instanceof GomokuValidationError) {
+        res.status(409).json({ message: error.message });
+        return;
+      }
+      next(error);
+    }
+  });
+
+  router.post("/reject", requireAuth, async (req, res, next) => {
+    if (!req.user) {
+      res.status(401).json({ message: "Unauthorized." });
+      return;
+    }
+
+    const parsed = rejectSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ message: "Invalid reject payload." });
+      return;
+    }
+
+    try {
+      const game = await service.rejectInvite(parsed.data.gameId, req.user.id);
       emitGomokuUpdate(io, game);
       res.json({ game });
     } catch (error) {

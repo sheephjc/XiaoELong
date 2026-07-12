@@ -108,6 +108,8 @@ npm.cmd run dev:client
 npm.cmd run dev:desktop
 ```
 
+`dev:client` / `dev:desktop` 会强制使用 `http://localhost:3001`，用于本地联调；正式客户端打包脚本会强制使用公网服务 `http://43.139.223.204:3001`。
+
 ## 构建与清理
 
 清理本地构建产物：
@@ -116,17 +118,37 @@ npm.cmd run dev:desktop
 npm.cmd run clean
 ```
 
-构建 shared、server、client：
+构建 shared、server、client。默认构建使用公网服务地址：
 
 ```powershell
 npm.cmd run build
 ```
 
-生成 Electron unpacked 目录包：
+本地回归测试构建使用本地服务地址：
+
+```powershell
+npm.cmd run build:local
+```
+
+正式发布构建使用公网服务地址：
+
+```powershell
+npm.cmd run build:cloud
+```
+
+生成 Electron unpacked 目录包，适合本机快速测试：
 
 ```powershell
 npm.cmd run electron:pack
 ```
+
+生成带自动更新元数据的 Windows 安装包：
+
+```powershell
+npm.cmd run electron:dist
+```
+
+`electron:dist` 会在 `release/` 下生成 `XiaoELong Setup x.y.z.exe`、`.blockmap` 和 `latest.yml`。将这三个文件上传到服务器 `UPDATE_ROOT` 对应目录后，安装版客户端可在设置里检查、下载并重启安装更新。
 
 `build` 会先运行 `clean`，避免旧的 `dist` 文件混入发布产物。
 
@@ -160,12 +182,13 @@ REST：
 - `GET /api/gomoku/games`
 - `POST /api/gomoku/invite`
 - `POST /api/gomoku/accept`
+- `POST /api/gomoku/reject`
 - `POST /api/gomoku/move`
 
 Socket：
 
 - 服务端推送：`presence:init`、`presence:online`、`presence:offline`、`user:update`、`chat:message`、`question:update`、`mood:update`、`gomoku:update`、`gomoku:end`
-- 客户端发送：`chat:send`、`gomoku:invite`、`gomoku:accept`、`gomoku:move`
+- 客户端发送：`chat:send`、`gomoku:invite`、`gomoku:accept`、`gomoku:reject`、`gomoku:move`
 
 共享类型集中在 `shared/src/index.ts`，前后端应优先复用这里的接口契约。
 

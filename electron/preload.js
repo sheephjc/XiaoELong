@@ -9,15 +9,28 @@ contextBridge.exposeInMainWorld("xiaoelongDesktop", {
   toggleHomePanel: () => ipcRenderer.send("desktop:toggle-home"),
   openSettingsPanel: () => ipcRenderer.send("desktop:open-settings"),
   notifyPanelReady: () => ipcRenderer.send("desktop:panel-ready"),
+  setPanelContentExtraHeight: (height) => ipcRenderer.send("desktop:panel-content-extra-height", height),
   notifyLogin: (token) => ipcRenderer.send("desktop:login", token),
+  getPersistedAccessToken: () => ipcRenderer.sendSync("desktop:session-token:get"),
+  persistAccessToken: (token) => ipcRenderer.send("desktop:session-token:set", token),
+  clearPersistedAccessToken: () => ipcRenderer.send("desktop:session-token:clear"),
   hideAllWindows: () => ipcRenderer.send("desktop:hide-all-windows"),
-  previewMoodPrompt: () => ipcRenderer.send("desktop:mood-preview"),
   setMoodPromptVisible: (visible) => ipcRenderer.send("desktop:mood-prompt-visible", visible),
+  setAvatarClickThrough: (enabled) => ipcRenderer.send("desktop:avatar-click-through", enabled),
   openImageViewer: (payload) => ipcRenderer.send("desktop:image-viewer-open", payload),
   requestLogout: () => ipcRenderer.send("desktop:logout"),
   getSettings: () => ipcRenderer.invoke("desktop:settings:get"),
   setLoginAtStartup: (enabled) => ipcRenderer.invoke("desktop:settings:set-login-at-startup", enabled),
   setPanelAlwaysOnTop: (enabled) => ipcRenderer.invoke("desktop:settings:set-panel-always-on-top", enabled),
+  getUpdateState: () => ipcRenderer.invoke("updates:get-state"),
+  checkForUpdates: () => ipcRenderer.invoke("updates:check"),
+  downloadUpdate: () => ipcRenderer.invoke("updates:download"),
+  installUpdate: () => ipcRenderer.invoke("updates:install"),
+  onUpdateState: (callback) => {
+    const listener = (_event, state) => callback(state);
+    ipcRenderer.on("updates:state", listener);
+    return () => ipcRenderer.removeListener("updates:state", listener);
+  },
   onPanelViewChange: (callback) => {
     const listener = (_event, view) => callback(view);
     ipcRenderer.on("desktop:panel-view", listener);
@@ -37,11 +50,6 @@ contextBridge.exposeInMainWorld("xiaoelongDesktop", {
     const listener = (_event, token) => callback(token);
     ipcRenderer.on("desktop:login", listener);
     return () => ipcRenderer.removeListener("desktop:login", listener);
-  },
-  onMoodPreview: (callback) => {
-    const listener = () => callback();
-    ipcRenderer.on("desktop:mood-preview", listener);
-    return () => ipcRenderer.removeListener("desktop:mood-preview", listener);
   },
   onPlacementChange: (callback) => {
     const listener = (_event, placement) => callback(placement);

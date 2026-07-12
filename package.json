@@ -1,6 +1,6 @@
 {
   "name": "xiaoelong-monorepo",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "workspaces": [
     "client",
@@ -10,11 +10,14 @@
   "scripts": {
     "clean": "node scripts/clean.mjs",
     "dev:server": "npm run dev --workspace server",
-    "dev:client": "npm run dev --workspace client",
-    "dev:desktop": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"wait-on tcp:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron electron/main.js\"",
-    "build": "npm run clean && npm run build --workspace shared && npm run build --workspace server && npm run build --workspace client",
+    "dev:client": "cross-env VITE_SERVER_URL=http://localhost:3001 npm run dev --workspace client",
+    "dev:desktop": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"wait-on tcp:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
+    "build": "npm run build:cloud",
+    "build:local": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://localhost:3001 npm run build --workspace client",
+    "build:cloud": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://43.139.223.204:3001 npm run build --workspace client",
     "db:init": "npm run db:init --workspace server",
-    "electron:pack": "npm run build && electron-builder --dir"
+    "electron:pack": "npm run build:cloud && electron-builder --dir",
+    "electron:dist": "npm run build:cloud && electron-builder --win nsis --publish never"
   },
   "main": "electron/main.js",
   "devDependencies": {
@@ -34,16 +37,36 @@
     "files": [
       "electron/**/*",
       "client/dist/**/*",
-      "server/dist/**/*",
-      "server/package.json",
-      "shared/dist/**/*",
+      "package.json",
       "node_modules/**/*"
     ],
     "win": {
+      "icon": "electron/assets/xiaoelong-tray-icon.png",
       "signAndEditExecutable": false,
       "target": [
-        "dir"
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ]
-    }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "http://43.139.223.204:3001/updates/"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

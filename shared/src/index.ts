@@ -267,6 +267,10 @@ export interface GomokuAcceptPayload {
   gameId: number;
 }
 
+export interface GomokuRejectPayload {
+  gameId: number;
+}
+
 export interface GomokuMovePayload {
   gameId: number;
   row: number;
@@ -307,5 +311,6 @@ export interface ClientToServerEvents {
   "chat:send": (payload: ChatSendPayload, ack?: (result: ChatSendAck) => void) => void;
   "gomoku:invite": (payload: GomokuInvitePayload, ack?: (result: GomokuAck) => void) => void;
   "gomoku:accept": (payload: GomokuAcceptPayload, ack?: (result: GomokuAck) => void) => void;
+  "gomoku:reject": (payload: GomokuRejectPayload, ack?: (result: GomokuAck) => void) => void;
   "gomoku:move": (payload: GomokuMovePayload, ack?: (result: GomokuAck) => void) => void;
 }
