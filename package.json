@@ -1,6 +1,6 @@
 {
   "name": "xiaoelong-monorepo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "workspaces": [
     "client",
@@ -16,8 +16,10 @@
     "build:local": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://localhost:3001 npm run build --workspace client",
     "build:cloud": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://43.139.223.204:3001 npm run build --workspace client",
     "db:init": "npm run db:init --workspace server",
+    "deepseek:check": "npm run build --workspace shared && npm run build --workspace server && npm run deepseek:check --workspace server",
     "electron:pack": "npm run build:cloud && electron-builder --dir",
-    "electron:dist": "npm run build:cloud && electron-builder --win nsis --publish never"
+    "electron:dist": "npm run build:cloud && electron-builder --win nsis --publish never",
+    "electron:dist:mac": "npm run build:cloud && electron-builder --mac dmg zip --universal --publish never"
   },
   "main": "electron/main.js",
   "devDependencies": {
@@ -41,8 +43,7 @@
       "node_modules/**/*"
     ],
     "win": {
-      "icon": "electron/assets/xiaoelong-tray-icon.png",
-      "signAndEditExecutable": false,
+      "icon": "electron/assets/xiaoelong-tray-icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -57,7 +58,32 @@
       "allowToChangeInstallationDirectory": true,
       "perMachine": false,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "installerIcon": "electron/assets/xiaoelong-tray-icon.ico",
+      "uninstallerIcon": "electron/assets/xiaoelong-tray-icon.ico",
+      "installerHeaderIcon": "electron/assets/xiaoelong-tray-icon.ico"
+    },
+    "mac": {
+      "icon": "client/src/assets/xiaoelong-mascot.png",
+      "asar": true,
+      "identity": null,
+      "hardenedRuntime": false,
+      "category": "public.app-category.social-networking",
+      "artifactName": "XiaoELong-${version}-mac-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
     },
     "publish": [
       {

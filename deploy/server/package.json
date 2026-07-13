@@ -1,6 +1,6 @@
 {
   "name": "xiaoelong-server-deploy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "workspaces": [
     "server",
@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "db:init": "cd server && node dist/db/init.js",
+    "deepseek:check": "cd server && node dist/scripts/deepseek-check.js",
     "start": "cd server && node dist/index.js"
   }
 }

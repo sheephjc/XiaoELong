@@ -1037,7 +1037,10 @@ export default function App(): JSX.Element {
     if (!window.xiaoelongDesktop?.setWindowMode || desktopRole === "panel" || desktopRole === "avatar") {
       return;
     }
-    if (booting || !currentUser) {
+    if (booting) {
+      return;
+    }
+    if (!currentUser) {
       window.xiaoelongDesktop.setWindowMode("auth");
       return;
     }

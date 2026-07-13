@@ -1,0 +1,59 @@
+name: Build macOS universal
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build universal DMG and ZIP
+        run: npm run electron:dist:mac
+
+      - name: Verify universal architecture
+        shell: bash
+        run: |
+          APP_PATH="$(find release -type d -name 'XiaoELong.app' -print -quit)"
+          if [[ -z "$APP_PATH" ]]; then
+            echo "XiaoELong.app was not found." >&2
+            exit 1
+          fi
+          ARCHS="$(lipo -archs "$APP_PATH/Contents/MacOS/XiaoELong")"
+          echo "$ARCHS" | tee release/mac-architectures.txt
+          grep -qw x86_64 <<<"$ARCHS"
+          grep -qw arm64 <<<"$ARCHS"
+
+      - name: Create SHA-256 checksums
+        shell: bash
+        run: |
+          shasum -a 256 release/*.dmg release/*.zip | tee release/SHA256-mac.txt
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: XiaoELong-1.1.0-mac-universal
+          if-no-files-found: error
+          path: |
+            release/*.dmg
+            release/*.zip
+            release/latest-mac.yml
+            release/mac-architectures.txt
+            release/SHA256-mac.txt

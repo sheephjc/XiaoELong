@@ -1,6 +1,8 @@
 # 小鳄龙桌面组件
 
-小鳄龙是一个给固定小群使用的 Windows 桌面伴侣。它用 Electron 提供桌面悬浮入口，React/Vite 渲染界面，Express + Socket.io 提供鉴权、聊天、每日问题、心情和五子棋服务，MySQL 持久化数据。
+小鳄龙是一个给固定小群使用的 Windows/macOS 桌面伴侣。它用 Electron 提供桌面悬浮入口，React/Vite 渲染界面，Express + Socket.io 提供鉴权、聊天、每日问题、心情和五子棋服务，MySQL 持久化数据。
+
+当前版本：`1.1.0`
 
 ## 技术栈
 
@@ -110,6 +112,25 @@ npm.cmd run dev:desktop
 
 `dev:client` / `dev:desktop` 会强制使用 `http://localhost:3001`，用于本地联调；正式客户端打包脚本会强制使用公网服务 `http://43.139.223.204:3001`。
 
+开发版使用独立的 `XiaoELong-dev` 用户数据目录，不会覆盖正式版登录信息，也不会修改正式版的开机自启动设置。
+
+## DeepSeek 诊断
+
+配置好 `server/.env` 并完成构建后，可以执行一次不会写入数据库的 DeepSeek 诊断：
+
+```powershell
+npm.cmd run deepseek:check
+```
+
+诊断会先验证 `/models` 鉴权与配置模型是否可用，再真实生成一道题并执行结构校验。成功时会显示：
+
+```text
+[DeepSeekCheck] Authentication succeeded.
+[DeepSeekCheck] Generated question passed schema validation.
+```
+
+诊断和服务日志不会输出 API Key。每日题首次生成失败后会保存当天的本地备用题；当天不会自动替换，DeepSeek 恢复后从下一道新题开始生效。
+
 ## 构建与清理
 
 清理本地构建产物：
@@ -149,6 +170,26 @@ npm.cmd run electron:dist
 ```
 
 `electron:dist` 会在 `release/` 下生成 `XiaoELong Setup x.y.z.exe`、`.blockmap` 和 `latest.yml`。将这三个文件上传到服务器 `UPDATE_ROOT` 对应目录后，安装版客户端可在设置里检查、下载并重启安装更新。
+
+在 macOS 或 GitHub Actions 的 macOS 运行器中生成 Intel + Apple Silicon 通用测试包：
+
+```bash
+npm run electron:dist:mac
+```
+
+该命令会生成通用架构的 DMG 和 ZIP。仓库中的 `Build macOS universal` GitHub Actions 工作流可手动触发，并会验证 App 同时包含 `x86_64` 和 `arm64` 后上传构建产物与 SHA-256。
+
+当前 macOS 版本是未签名测试版：
+
+- 首次打开时需要在 Finder 中右键应用并选择“打开”，或在“系统设置 → 隐私与安全性”中允许运行。
+- 如系统仍提示应用来自身份不明的开发者，可在确认安装包来源后执行：
+
+```bash
+xattr -dr com.apple.quarantine /Applications/XiaoELong.app
+```
+
+- 未签名 macOS 测试版不支持自动更新，后续取得 Apple Developer 证书并完成签名与公证后再启用。
+- Windows 自动更新不受影响；macOS 测试阶段只需向用户发送 DMG，不要把 `latest-mac.yml` 上传到正式更新目录。
 
 `build` 会先运行 `clean`，避免旧的 `dist` 文件混入发布产物。
 

@@ -33,6 +33,8 @@ const DESKTOP_MARGIN_RIGHT = 28;
 const DESKTOP_MARGIN_BOTTOM = 34;
 
 let authWindow = null;
+let authWindowReady = false;
+let pendingAuthShow = false;
 let avatarWindow = null;
 let panelWindow = null;
 let imageViewerWindow = null;
@@ -304,7 +306,7 @@ function getWebPreferences(role) {
 
 function getDesktopSettings() {
   return {
-    openAtLogin: app.getLoginItemSettings().openAtLogin,
+    openAtLogin: isDevelopment ? false : app.getLoginItemSettings().openAtLogin,
     panelAlwaysOnTop
   };
 }
@@ -340,10 +342,19 @@ function setUpdateState(patch) {
 }
 
 function canUseAutoUpdater() {
-  return app.isPackaged && !process.env.ELECTRON_START_URL;
+  return process.platform !== "darwin" && app.isPackaged && !process.env.ELECTRON_START_URL;
 }
 
 function setupAutoUpdater() {
+  if (process.platform === "darwin") {
+    setUpdateState({
+      status: "unavailable",
+      message: "macOS 未签名测试版暂不支持自动更新。",
+      progress: null
+    });
+    return;
+  }
+
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
 
@@ -620,6 +631,7 @@ function createAuthWindow() {
     return authWindow;
   }
 
+  authWindowReady = false;
   authWindow = new BrowserWindow({
     width: AUTH_WIDTH,
     height: AUTH_HEIGHT,
@@ -646,12 +658,16 @@ function createAuthWindow() {
 
   loadRenderer(authWindow, "auth");
   authWindow.once("ready-to-show", () => {
-    if (authWindow) {
+    authWindowReady = true;
+    if (authWindow && pendingAuthShow) {
+      pendingAuthShow = false;
       authWindow.show();
     }
   });
   authWindow.on("closed", () => {
     authWindow = null;
+    authWindowReady = false;
+    pendingAuthShow = false;
   });
   return authWindow;
 }
@@ -873,17 +889,23 @@ function updatePanelBounds() {
 
 function showAuthMode() {
   panelOpen = false;
+  pendingAuthShow = true;
   pendingPanelShow = false;
   clearPanelReadyFallback();
   if (avatarWindow) {
     avatarWindow.hide();
   }
   parkPanelWindow();
-  createAuthWindow().show();
+  const targetWindow = createAuthWindow();
+  if (authWindowReady) {
+    pendingAuthShow = false;
+    targetWindow.show();
+  }
 }
 
 function showCollapsedMode() {
   panelOpen = false;
+  pendingAuthShow = false;
   pendingPanelShow = false;
   clearPanelReadyFallback();
   if (authWindow) {
@@ -902,6 +924,7 @@ function showCollapsedMode() {
 
 function showExpandedMode(panelView = "home") {
   panelOpen = true;
+  pendingAuthShow = false;
   const viewChanged = currentPanelView !== panelView;
   currentPanelView = panelView;
   if (authWindow) {
@@ -1124,6 +1147,10 @@ ipcMain.on("desktop:logout", () => {
 ipcMain.handle("desktop:settings:get", () => getDesktopSettings());
 
 ipcMain.handle("desktop:settings:set-login-at-startup", (_event, enabled) => {
+  if (isDevelopment) {
+    return getDesktopSettings();
+  }
+
   app.setLoginItemSettings({
     openAtLogin: Boolean(enabled)
   });

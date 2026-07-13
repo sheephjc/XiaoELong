@@ -70,6 +70,10 @@ export class DailyQuestionService {
         sourceContext: generated.sourceContext
       });
     } catch (error) {
+      const reason = error instanceof Error ? error.message : "unknown";
+      console.error(
+        `[DailyQuestion] DeepSeek generation failed for ${date} (model: ${env.DEEPSEEK_MODEL}); using local fallback: ${reason}`
+      );
       const fallbackProvider = createFallbackQuestionGeneratorProvider();
       const generated = await fallbackProvider.generate({ date, avoidQuestions });
       return await createDailyQuestion({
@@ -83,7 +87,8 @@ export class DailyQuestionService {
         sourceType: "fallback",
         sourceContext: JSON.stringify({
           provider: "local-fallback",
-          reason: error instanceof Error ? error.message : "unknown"
+          model: env.DEEPSEEK_MODEL,
+          reason
         })
       });
     }

@@ -1,12 +1,13 @@
 {
   "name": "xiaoelong-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "deepseek:check": "node dist/scripts/deepseek-check.js",
     "db:init": "tsx src/db/init.ts"
   },
   "dependencies": {

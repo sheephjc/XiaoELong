@@ -1,6 +1,10 @@
 node_modules/
 dist/
 release/
+deploy/XiaoELong-server-*.zip
+deploy/XiaoELong-updates-*.zip
+deploy/SHA256-*.txt
+mac-artifacts/
 *.tsbuildinfo
 *.log
 .local-logs/
