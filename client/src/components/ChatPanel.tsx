@@ -8,16 +8,28 @@ import {
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  type MutableRefObject
 } from "react";
 import type { ChatFile, ChatMessage } from "@xiaoelong/shared";
 import { withServerUrl } from "../env";
 import { UserAvatar } from "./UserAvatar";
 
+export interface ChatScrollMemory {
+  scrollTop: number;
+  atBottom: boolean;
+  anchorMessageId: number | null;
+  anchorOffset: number;
+  lastMessageId: number | null;
+  firstUnreadMessageId: number | null;
+  unreadCount: number;
+}
+
 interface ChatPanelProps {
   currentUserId: string;
   messages: ChatMessage[];
   sendError: string | null;
+  scrollMemoryRef: MutableRefObject<ChatScrollMemory | null>;
   onSendMessage: (payload: { content: string; imageFile: File | null; fileFile: File | null }) => Promise<void>;
 }
 
@@ -137,13 +149,32 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [sending, setSending] = useState(false);
   const [dragDepth, setDragDepth] = useState(0);
-  const [newMessageCount, setNewMessageCount] = useState(0);
+  const [hiddenUnreadCount, setHiddenUnreadCount] = useState(0);
+  const [liveNewMessageCount, setLiveNewMessageCount] = useState(0);
   const listRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isAtBottomRef = useRef(true);
   const lastMessageIdRef = useRef<number | null>(null);
+  const firstUnreadMessageIdRef = useRef<number | null>(null);
+  const unreadCountRef = useRef(0);
+  const firstLiveNewMessageIdRef = useRef<number | null>(null);
+  const liveNewMessageCountRef = useRef(0);
+  const hasRestoredScrollRef = useRef(false);
+  const isScrollingToBottomRef = useRef(false);
+  const restoreFrameRef = useRef<number | null>(null);
+  const startupFrameRef = useRef<number | null>(null);
+  const coldStartScrollRef = useRef(props.scrollMemoryRef.current === null);
+  const startupBaselineInitializedRef = useRef(false);
+  const startupBottomPendingRef = useRef(props.scrollMemoryRef.current === null);
+  const panelVisibleRef = useRef(
+    window.xiaoelongDesktop?.role === "panel"
+      ? (window.xiaoelongDesktop.getPanelVisibility?.() ?? document.visibilityState === "visible")
+      : true
+  );
 
   const renderedMessages = useMemo(() => props.messages, [props.messages]);
+  const renderedMessagesRef = useRef(renderedMessages);
+  renderedMessagesRef.current = renderedMessages;
   const imageMessages = useMemo(
     () =>
       renderedMessages.flatMap((message) =>
@@ -175,6 +206,86 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
     };
   }, [imageFile]);
 
+  function getMessageElement(messageId: number): HTMLElement | null {
+    return listRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`) ?? null;
+  }
+
+  function setHiddenUnreadState(firstUnreadMessageId: number | null, unreadCount: number): void {
+    const normalizedCount = firstUnreadMessageId === null ? 0 : Math.max(0, unreadCount);
+    firstUnreadMessageIdRef.current = normalizedCount > 0 ? firstUnreadMessageId : null;
+    unreadCountRef.current = normalizedCount;
+    setHiddenUnreadCount(normalizedCount);
+
+    const memory = props.scrollMemoryRef.current;
+    if (memory) {
+      props.scrollMemoryRef.current = {
+        ...memory,
+        firstUnreadMessageId: firstUnreadMessageIdRef.current,
+        unreadCount: normalizedCount
+      };
+    }
+  }
+
+  function setLiveNewMessageState(firstMessageId: number | null, messageCount: number): void {
+    const normalizedCount = firstMessageId === null ? 0 : Math.max(0, messageCount);
+    firstLiveNewMessageIdRef.current = normalizedCount > 0 ? firstMessageId : null;
+    liveNewMessageCountRef.current = normalizedCount;
+    setLiveNewMessageCount(normalizedCount);
+  }
+
+  function captureScrollMemory(): void {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const messageElements = Array.from(list.querySelectorAll<HTMLElement>("[data-message-id]"));
+    const anchorElement = messageElements.find((element) => element.getBoundingClientRect().bottom > listBounds.top);
+    const anchorMessageId = anchorElement ? Number(anchorElement.dataset.messageId) : null;
+    const anchorOffset = anchorElement ? anchorElement.getBoundingClientRect().top - listBounds.top : 0;
+    const distanceToBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    const atBottom = unreadCountRef.current === 0
+      && liveNewMessageCountRef.current === 0
+      && (isScrollingToBottomRef.current || distanceToBottom <= 28);
+    const latestMessage = renderedMessagesRef.current[renderedMessagesRef.current.length - 1] ?? null;
+
+    isAtBottomRef.current = atBottom;
+    props.scrollMemoryRef.current = {
+      scrollTop: list.scrollTop,
+      atBottom,
+      anchorMessageId: Number.isFinite(anchorMessageId) ? anchorMessageId : null,
+      anchorOffset,
+      lastMessageId: lastMessageIdRef.current ?? latestMessage?.id ?? null,
+      firstUnreadMessageId: firstUnreadMessageIdRef.current,
+      unreadCount: unreadCountRef.current
+    };
+  }
+
+  function restoreScrollPosition(memory: ChatScrollMemory): void {
+    const list = listRef.current;
+    if (!list) {
+      return;
+    }
+
+    isScrollingToBottomRef.current = false;
+    const maxScrollTop = Math.max(0, list.scrollHeight - list.clientHeight);
+    list.scrollTop = Math.max(0, Math.min(memory.scrollTop, maxScrollTop));
+
+    if (memory.anchorMessageId === null) {
+      return;
+    }
+
+    const anchorElement = getMessageElement(memory.anchorMessageId);
+    if (!anchorElement) {
+      return;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const anchorOffset = anchorElement.getBoundingClientRect().top - listBounds.top;
+    list.scrollTop += anchorOffset - memory.anchorOffset;
+  }
+
   function scrollToBottom(behavior: ScrollBehavior = "auto"): void {
     const list = listRef.current;
     if (!list) {
@@ -184,8 +295,74 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
       top: list.scrollHeight,
       behavior
     });
+    isScrollingToBottomRef.current = behavior === "smooth";
     isAtBottomRef.current = true;
-    setNewMessageCount(0);
+    setHiddenUnreadState(null, 0);
+    setLiveNewMessageState(null, 0);
+  }
+
+  function scheduleStartupScrollToBottom(): void {
+    if (startupFrameRef.current !== null) {
+      window.cancelAnimationFrame(startupFrameRef.current);
+    }
+
+    scrollToBottom("auto");
+    captureScrollMemory();
+    startupFrameRef.current = window.requestAnimationFrame(() => {
+      startupFrameRef.current = window.requestAnimationFrame(() => {
+        startupFrameRef.current = null;
+        scrollToBottom("auto");
+        captureScrollMemory();
+      });
+    });
+  }
+
+  function scrollToFirstHiddenUnread(): void {
+    const list = listRef.current;
+    const firstUnreadMessageId = firstUnreadMessageIdRef.current;
+    if (!list || firstUnreadMessageId === null) {
+      return;
+    }
+
+    isScrollingToBottomRef.current = false;
+    const firstUnreadElement = getMessageElement(firstUnreadMessageId);
+    if (!firstUnreadElement) {
+      scrollToBottom("smooth");
+      return;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const targetTop = list.scrollTop + firstUnreadElement.getBoundingClientRect().top - listBounds.top - 8;
+    list.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: "smooth"
+    });
+    setHiddenUnreadState(null, 0);
+    window.requestAnimationFrame(captureScrollMemory);
+  }
+
+  function scrollToFirstLiveNewMessage(): void {
+    const list = listRef.current;
+    const firstMessageId = firstLiveNewMessageIdRef.current;
+    if (!list || firstMessageId === null) {
+      return;
+    }
+
+    isScrollingToBottomRef.current = false;
+    const firstMessageElement = getMessageElement(firstMessageId);
+    if (!firstMessageElement) {
+      scrollToBottom("smooth");
+      return;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const targetTop = list.scrollTop + firstMessageElement.getBoundingClientRect().top - listBounds.top - 8;
+    list.scrollTo({
+      top: Math.max(0, targetTop),
+      behavior: "smooth"
+    });
+    setLiveNewMessageState(null, 0);
+    window.requestAnimationFrame(captureScrollMemory);
   }
 
   function updateBottomState(): void {
@@ -195,11 +372,46 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
     }
     const distanceToBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
     const isAtBottom = distanceToBottom <= 28;
-    isAtBottomRef.current = isAtBottom;
     if (isAtBottom) {
-      setNewMessageCount(0);
+      isScrollingToBottomRef.current = false;
     }
+    isAtBottomRef.current = isScrollingToBottomRef.current || isAtBottom;
+    if (isAtBottom) {
+      setHiddenUnreadState(null, 0);
+      setLiveNewMessageState(null, 0);
+    }
+    captureScrollMemory();
   }
+
+  useEffect(() => {
+    function handlePanelVisibility(visible: boolean): void {
+      panelVisibleRef.current = visible;
+      if (!visible) {
+        captureScrollMemory();
+        return;
+      }
+
+      if (startupBottomPendingRef.current) {
+        startupBottomPendingRef.current = false;
+        if (unreadCountRef.current === 0 && liveNewMessageCountRef.current === 0) {
+          scheduleStartupScrollToBottom();
+        }
+      }
+    }
+
+    const desktopCleanup = window.xiaoelongDesktop?.onPanelVisibilityChange?.(handlePanelVisibility);
+    const handleDocumentVisibility = (): void => {
+      if (window.xiaoelongDesktop?.role !== "panel") {
+        handlePanelVisibility(document.visibilityState === "visible");
+      }
+    };
+    document.addEventListener("visibilitychange", handleDocumentVisibility);
+
+    return () => {
+      desktopCleanup?.();
+      document.removeEventListener("visibilitychange", handleDocumentVisibility);
+    };
+  }, [props.scrollMemoryRef]);
 
   function openImageViewer(messageId: number): void {
     const nextIndex = imageMessages.findIndex((item) => item.messageId === messageId);
@@ -258,39 +470,175 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
     }
   }
 
-  function handleRenderedImageLoad(message: ChatMessage): void {
-    const latestMessage = renderedMessages[renderedMessages.length - 1] ?? null;
-    const shouldKeepAtBottom = isAtBottomRef.current || message.user.id === props.currentUserId;
-    if (latestMessage?.id === message.id && shouldKeepAtBottom) {
-      window.requestAnimationFrame(() => scrollToBottom("auto"));
-    }
+  function handleRenderedImageLoad(): void {
+    window.requestAnimationFrame(() => {
+      if (isAtBottomRef.current) {
+        scrollToBottom("auto");
+        captureScrollMemory();
+        return;
+      }
+
+      const memory = props.scrollMemoryRef.current;
+      if (memory) {
+        restoreScrollPosition(memory);
+        updateBottomState();
+      }
+    });
   }
 
   useLayoutEffect(() => {
     const latestMessage = renderedMessages[renderedMessages.length - 1] ?? null;
-    const previousLastId = lastMessageIdRef.current;
-    if (!latestMessage) {
-      lastMessageIdRef.current = null;
-      setNewMessageCount(0);
+
+    if (coldStartScrollRef.current && !startupBaselineInitializedRef.current && latestMessage) {
+      startupBaselineInitializedRef.current = true;
+      hasRestoredScrollRef.current = true;
+      lastMessageIdRef.current = latestMessage.id;
+      setHiddenUnreadState(null, 0);
+      setLiveNewMessageState(null, 0);
+      scrollToBottom("auto");
+      captureScrollMemory();
+      if (panelVisibleRef.current) {
+        startupBottomPendingRef.current = false;
+        scheduleStartupScrollToBottom();
+      }
       return;
     }
 
-    const isInitialLoad = previousLastId === null;
-    const hasNewMessage = latestMessage.id !== previousLastId;
+    if (!hasRestoredScrollRef.current) {
+      hasRestoredScrollRef.current = true;
+      const memory = props.scrollMemoryRef.current;
+      lastMessageIdRef.current = latestMessage?.id ?? null;
+
+      if (!memory) {
+        setHiddenUnreadState(null, 0);
+        setLiveNewMessageState(null, 0);
+        scrollToBottom("auto");
+        captureScrollMemory();
+        return;
+      }
+
+      let firstUnreadMessageId = memory.firstUnreadMessageId;
+      if (firstUnreadMessageId !== null && !renderedMessages.some((message) => message.id === firstUnreadMessageId)) {
+        firstUnreadMessageId = null;
+      }
+
+      const previousLastIndex = memory.lastMessageId === null
+        ? -1
+        : renderedMessages.findIndex((message) => message.id === memory.lastMessageId);
+      const messagesSinceLeaving = memory.lastMessageId === null
+        ? []
+        : previousLastIndex >= 0
+          ? renderedMessages.slice(previousLastIndex + 1)
+          : renderedMessages;
+      const firstNewUnread = messagesSinceLeaving.find((message) => message.user.id !== props.currentUserId) ?? null;
+      if (firstUnreadMessageId === null && firstNewUnread) {
+        firstUnreadMessageId = firstNewUnread.id;
+      }
+
+      if (firstUnreadMessageId === null && memory.atBottom) {
+        setHiddenUnreadState(null, 0);
+        setLiveNewMessageState(null, 0);
+        scrollToBottom("auto");
+        captureScrollMemory();
+        return;
+      }
+
+      const firstUnreadIndex = firstUnreadMessageId === null
+        ? -1
+        : renderedMessages.findIndex((message) => message.id === firstUnreadMessageId);
+      const unreadCount = firstUnreadIndex >= 0
+        ? renderedMessages
+            .slice(firstUnreadIndex)
+            .filter((message) => message.user.id !== props.currentUserId).length
+        : firstUnreadMessageId === null
+          ? 0
+          : memory.unreadCount;
+
+      isAtBottomRef.current = false;
+      setHiddenUnreadState(unreadCount > 0 ? firstUnreadMessageId : null, unreadCount);
+      restoreScrollPosition(memory);
+      captureScrollMemory();
+
+      restoreFrameRef.current = window.requestAnimationFrame(() => {
+        const restoredMemory = props.scrollMemoryRef.current;
+        if (restoredMemory && !isAtBottomRef.current) {
+          restoreScrollPosition(restoredMemory);
+          updateBottomState();
+        }
+      });
+      return;
+    }
+
+    const previousLastId = lastMessageIdRef.current;
+    if (!latestMessage) {
+      lastMessageIdRef.current = null;
+      setHiddenUnreadState(null, 0);
+      setLiveNewMessageState(null, 0);
+      captureScrollMemory();
+      return;
+    }
+
+    if (latestMessage.id === previousLastId) {
+      return;
+    }
+
+    const previousLastIndex = previousLastId === null
+      ? -1
+      : renderedMessages.findIndex((message) => message.id === previousLastId);
+    const addedMessages = previousLastIndex >= 0
+      ? renderedMessages.slice(previousLastIndex + 1)
+      : [latestMessage];
     lastMessageIdRef.current = latestMessage.id;
 
-    if (!hasNewMessage) {
+    const externalAddedMessages = addedMessages.filter((message) => message.user.id !== props.currentUserId);
+    if (!panelVisibleRef.current && externalAddedMessages.length > 0) {
+      const firstUnreadMessageId = firstUnreadMessageIdRef.current ?? externalAddedMessages[0].id;
+      const firstUnreadIndex = renderedMessages.findIndex((message) => message.id === firstUnreadMessageId);
+      const unreadCount = firstUnreadIndex >= 0
+        ? renderedMessages
+            .slice(firstUnreadIndex)
+            .filter((message) => message.user.id !== props.currentUserId).length
+        : unreadCountRef.current + externalAddedMessages.length;
+      isAtBottomRef.current = false;
+      setHiddenUnreadState(firstUnreadMessageId, unreadCount);
+      captureScrollMemory();
       return;
     }
 
     const latestIsMine = latestMessage.user.id === props.currentUserId;
-    if (isInitialLoad || isAtBottomRef.current || latestIsMine) {
-      scrollToBottom(isInitialLoad ? "auto" : "smooth");
+    if (isAtBottomRef.current || latestIsMine) {
+      scrollToBottom("smooth");
+      captureScrollMemory();
       return;
     }
 
-    setNewMessageCount((count) => count + 1);
-  }, [renderedMessages, props.currentUserId]);
+    if (externalAddedMessages.length === 0) {
+      captureScrollMemory();
+      return;
+    }
+
+    const firstLiveMessageId = firstLiveNewMessageIdRef.current ?? externalAddedMessages[0].id;
+    const firstLiveMessageIndex = renderedMessages.findIndex((message) => message.id === firstLiveMessageId);
+    const liveMessageCount = firstLiveMessageIndex >= 0
+      ? renderedMessages
+          .slice(firstLiveMessageIndex)
+          .filter((message) => message.user.id !== props.currentUserId).length
+      : liveNewMessageCountRef.current + externalAddedMessages.length;
+    setLiveNewMessageState(firstLiveMessageId, liveMessageCount);
+    captureScrollMemory();
+  }, [renderedMessages, props.currentUserId, props.scrollMemoryRef]);
+
+  useLayoutEffect(() => {
+    return () => {
+      if (restoreFrameRef.current !== null) {
+        window.cancelAnimationFrame(restoreFrameRef.current);
+      }
+      if (startupFrameRef.current !== null) {
+        window.cancelAnimationFrame(startupFrameRef.current);
+      }
+      captureScrollMemory();
+    };
+  }, [props.scrollMemoryRef]);
 
   useEffect(() => {
     if (viewerIndex !== null && viewerIndex >= imageMessages.length) {
@@ -476,12 +824,28 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
     >
       <div className="module-head">
         <h2>群聊</h2>
+        {hiddenUnreadCount > 0 ? (
+          <button
+            type="button"
+            className="chat-unread-jump"
+            aria-label={`返回关闭期间第一条未读消息，共 ${hiddenUnreadCount} 条`}
+            title={`返回关闭期间第一条未读消息（${hiddenUnreadCount} 条）`}
+            onClick={scrollToFirstHiddenUnread}
+          >
+            <span aria-hidden="true">↑</span>
+            <small>{hiddenUnreadCount > 99 ? "99+" : hiddenUnreadCount}</small>
+          </button>
+        ) : null}
       </div>
       <div className="chat-list" ref={listRef} onScroll={updateBottomState}>
         {renderedMessages.map((message) => {
           const isMine = message.user.id === props.currentUserId;
           return (
-            <article className={`chat-item ${isMine ? "mine" : ""}`} key={message.id}>
+            <article
+              className={`chat-item ${isMine ? "mine" : ""}`}
+              key={message.id}
+              data-message-id={message.id}
+            >
               <UserAvatar user={message.user} />
               <div className="bubble">
                 <header>
@@ -498,7 +862,7 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
                       className="chat-image"
                       src={withServerUrl(message.image.url) ?? message.image.url}
                       alt={message.image.name}
-                      onLoad={() => handleRenderedImageLoad(message)}
+                      onLoad={handleRenderedImageLoad}
                     />
                   </button>
                 ) : null}
@@ -528,9 +892,9 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
       {dragDepth > 0 ? <div className="chat-drop-overlay">释放以添加附件</div> : null}
 
       <div className="chat-compose">
-        {newMessageCount > 0 ? (
-          <button type="button" className="chat-new-message-pill" onClick={() => scrollToBottom("smooth")}>
-            有新消息 {newMessageCount} 条
+        {liveNewMessageCount > 0 ? (
+          <button type="button" className="chat-new-message-pill" onClick={scrollToFirstLiveNewMessage}>
+            有新消息 {liveNewMessageCount} 条
           </button>
         ) : null}
 

@@ -28,11 +28,28 @@ interface XiaoELongUpdateState {
 interface Window {
   readonly xiaoelongDesktop?: {
     readonly isDesktop: boolean;
-    readonly role?: "auth" | "avatar" | "panel" | "imageViewer";
+    readonly role?: "auth" | "avatar" | "panel" | "divine" | "imageViewer";
     readonly setWindowMode?: (mode: "auth" | "collapsed" | "expanded") => void;
     readonly toggleHomePanel?: () => void;
     readonly openSettingsPanel?: () => void;
+    readonly openDivineSelection?: (
+      data?: import("@xiaoelong/shared").DeityWorshipTodayResponse | null
+    ) => Promise<{ ok: boolean; error?: string }>;
+    readonly getInitialDivineData?: () => import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+    readonly getInitialDivineSession?: () => {
+      requestId: number;
+      data: import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+    };
+    readonly onDivineData?: (
+      callback: (session: {
+        requestId: number;
+        data: import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+      }) => void
+    ) => () => void;
+    readonly notifyDivineReady?: (requestId: number) => void;
+    readonly closeDivineSelection?: (completed?: boolean) => void;
     readonly notifyPanelReady?: () => void;
+    readonly getPanelVisibility?: () => boolean;
     readonly setPanelContentExtraHeight?: (height: number) => void;
     readonly notifyLogin?: (token: string) => void;
     readonly getPersistedAccessToken?: () => string | null;
@@ -68,6 +85,8 @@ interface Window {
     readonly installUpdate?: () => Promise<XiaoELongUpdateState>;
     readonly onUpdateState?: (callback: (state: XiaoELongUpdateState) => void) => () => void;
     readonly onPanelViewChange?: (callback: (view: "home" | "settings") => void) => () => void;
+    readonly onPanelVisibilityChange?: (callback: (visible: boolean) => void) => () => void;
+    readonly onDivineReturn?: (callback: (state: { completed: boolean }) => void) => () => void;
     readonly onSettingsChange?: (
       callback: (settings: { openAtLogin: boolean; panelAlwaysOnTop: boolean }) => void
     ) => () => void;

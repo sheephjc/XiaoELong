@@ -11,6 +11,7 @@ import { createAuthRouter } from "./routes/auth.js";
 import chatRouter from "./routes/chat.js";
 import { createDailyMoodRouter } from "./routes/daily-mood.js";
 import { createDailyQuestionRouter } from "./routes/daily-question.js";
+import { createDeityWorshipRouter } from "./routes/deity-worship.js";
 import { createGomokuRouter } from "./routes/gomoku.js";
 import { startQuestionScheduler } from "./jobs/question-scheduler.js";
 import { DailyQuestionService } from "./services/daily-question-service.js";
@@ -59,6 +60,7 @@ const gomokuService = new GomokuService();
 app.use("/api/auth", createAuthRouter(io));
 app.use("/api/daily-question", createDailyQuestionRouter(io, dailyQuestionService));
 app.use("/api/daily-mood", createDailyMoodRouter(io));
+app.use("/api/deity-worship", createDeityWorshipRouter(io));
 app.use("/api/gomoku", createGomokuRouter(io, gomokuService));
 
 setupSocket(io, { gomokuService });

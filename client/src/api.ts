@@ -11,6 +11,9 @@ import type {
   DailyMoodSetPayload,
   DailyMoodSetResponse,
   DailyMoodTodayResponse,
+  DeityWorshipPayload,
+  DeityWorshipResponse,
+  DeityWorshipTodayResponse,
   GomokuGamesResponse
 } from "@xiaoelong/shared";
 import { serverUrl } from "./env";
@@ -126,6 +129,21 @@ export async function getTodayMood(token: string): Promise<DailyMoodTodayRespons
 
 export async function setTodayMood(token: string, payload: DailyMoodSetPayload): Promise<DailyMoodSetResponse> {
   return requestJson<DailyMoodSetResponse>("/api/daily-mood", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function getTodayDeityWorship(token: string): Promise<DeityWorshipTodayResponse> {
+  return requestJson<DeityWorshipTodayResponse>("/api/deity-worship/today", { token });
+}
+
+export async function submitDeityWorship(
+  token: string,
+  payload: DeityWorshipPayload
+): Promise<DeityWorshipResponse> {
+  return requestJson<DeityWorshipResponse>("/api/deity-worship", {
     method: "POST",
     token,
     body: JSON.stringify(payload)

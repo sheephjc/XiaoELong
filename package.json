@@ -9,9 +9,9 @@
   ],
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "dev:server": "npm run dev --workspace server",
+    "dev:server": "cross-env NODE_ENV=development npm run dev --workspace server",
     "dev:client": "cross-env VITE_SERVER_URL=http://localhost:3001 npm run dev --workspace client",
-    "dev:desktop": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"wait-on tcp:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
+    "dev:desktop": "concurrently \"npm run dev:server\" \"npm run dev:client\" \"wait-on tcp:5173 && node scripts/dev-electron.mjs\"",
     "build": "npm run build:cloud",
     "build:local": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://localhost:3001 npm run build --workspace client",
     "build:cloud": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://43.139.223.204:3001 npm run build --workspace client",

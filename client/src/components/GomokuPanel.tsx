@@ -82,6 +82,41 @@ interface RenderedStone {
   stone: 1 | 2;
 }
 
+type GomokuResultKind = "victory" | "defeat";
+
+function GomokuResultEffect(props: { kind: GomokuResultKind; gameId: number }): JSX.Element {
+  return (
+    <div
+      key={`${props.gameId}-${props.kind}`}
+      className={`gomoku-result-effect ${props.kind}`}
+      aria-hidden="true"
+    >
+      {props.kind === "victory" ? (
+        <>
+          {Array.from({ length: 6 }, (_, fireworkIndex) => (
+            <span
+              key={fireworkIndex}
+              className={`gomoku-firework gomoku-firework-${fireworkIndex + 1}`}
+            >
+              {Array.from({ length: 10 }, (_, particleIndex) => (
+                <span key={particleIndex} className="gomoku-firework-particle" />
+              ))}
+            </span>
+          ))}
+          <span className="gomoku-victory-glint">★</span>
+        </>
+      ) : (
+        <>
+          <span className="gomoku-defeat-sigh" />
+          {Array.from({ length: 7 }, (_, dropIndex) => (
+            <span key={dropIndex} className={`gomoku-defeat-drop gomoku-defeat-drop-${dropIndex + 1}`} />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
 const Board = memo(function Board(props: {
   game: GomokuGame;
   currentUserId: string;
@@ -202,49 +237,58 @@ const Board = memo(function Board(props: {
       ? activePendingMove.stone
       : (props.game.boardState[keyboardCell.row]?.[keyboardCell.col] ?? 0);
   const activeCellState = activeCellValue === 1 ? "黑子" : activeCellValue === 2 ? "白子" : "空位";
+  const resultKind: GomokuResultKind | null =
+    props.game.status === "finished" && props.game.winner
+      ? props.game.winner === props.currentUserId
+        ? "victory"
+        : "defeat"
+      : null;
 
   return (
-    <div
-      className={`gomoku-board ${canMove && !activePendingMove ? "playable" : ""}`}
-      role="grid"
-      aria-label="五子棋棋盘"
-      aria-disabled={!canMove || Boolean(activePendingMove)}
-      aria-activedescendant={activeCellId}
-      tabIndex={canMove && !activePendingMove ? 0 : -1}
-      onClick={handleBoardClick}
-      onKeyDown={handleBoardKeyDown}
-      style={{
-        backgroundSize: `${100 / columnCount}% 100%, 100% ${100 / rowCount}%`
-      }}
-    >
-      {renderedStones.map((stone) => (
+    <div className={`gomoku-board-wrap ${resultKind ?? ""}`}>
+      <div
+        className={`gomoku-board ${canMove && !activePendingMove ? "playable" : ""}`}
+        role="grid"
+        aria-label="五子棋棋盘"
+        aria-disabled={!canMove || Boolean(activePendingMove)}
+        aria-activedescendant={activeCellId}
+        tabIndex={canMove && !activePendingMove ? 0 : -1}
+        onClick={handleBoardClick}
+        onKeyDown={handleBoardKeyDown}
+        style={{
+          backgroundSize: `${100 / columnCount}% 100%, 100% ${100 / rowCount}%`
+        }}
+      >
+        {renderedStones.map((stone) => (
+          <span
+            key={`${stone.row}-${stone.col}`}
+            className={`gomoku-stone ${stone.stone === 1 ? "black" : "white"}`}
+            aria-hidden="true"
+            style={{
+              left: `${((stone.col + 0.5) / columnCount) * 100}%`,
+              top: `${((stone.row + 0.5) / rowCount) * 100}%`,
+              width: `${(0.68 / columnCount) * 100}%`,
+              height: `${(0.68 / rowCount) * 100}%`
+            }}
+          />
+        ))}
         <span
-          key={`${stone.row}-${stone.col}`}
-          className={`gomoku-stone ${stone.stone === 1 ? "black" : "white"}`}
-          aria-hidden="true"
+          id={activeCellId}
+          role="gridcell"
+          className="gomoku-keyboard-target"
+          aria-rowindex={keyboardCell.row + 1}
+          aria-colindex={keyboardCell.col + 1}
+          aria-disabled={activeCellValue !== 0}
+          aria-label={`第 ${keyboardCell.row + 1} 行第 ${keyboardCell.col + 1} 列，${activeCellState}`}
           style={{
-            left: `${((stone.col + 0.5) / columnCount) * 100}%`,
-            top: `${((stone.row + 0.5) / rowCount) * 100}%`,
-            width: `${(0.68 / columnCount) * 100}%`,
-            height: `${(0.68 / rowCount) * 100}%`
+            left: `${(keyboardCell.col / columnCount) * 100}%`,
+            top: `${(keyboardCell.row / rowCount) * 100}%`,
+            width: `${100 / columnCount}%`,
+            height: `${100 / rowCount}%`
           }}
         />
-      ))}
-      <span
-        id={activeCellId}
-        role="gridcell"
-        className="gomoku-keyboard-target"
-        aria-rowindex={keyboardCell.row + 1}
-        aria-colindex={keyboardCell.col + 1}
-        aria-disabled={activeCellValue !== 0}
-        aria-label={`第 ${keyboardCell.row + 1} 行第 ${keyboardCell.col + 1} 列，${activeCellState}`}
-        style={{
-          left: `${(keyboardCell.col / columnCount) * 100}%`,
-          top: `${(keyboardCell.row / rowCount) * 100}%`,
-          width: `${100 / columnCount}%`,
-          height: `${100 / rowCount}%`
-        }}
-      />
+      </div>
+      {resultKind ? <GomokuResultEffect kind={resultKind} gameId={props.game.id} /> : null}
     </div>
   );
 });

@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
+import "./divine-constellation.css";
 
 const RENDER_RECOVERY_KEY = "xiaoelong_renderer_recovery_at";
 const RENDER_RECOVERY_WINDOW_MS = 60_000;
