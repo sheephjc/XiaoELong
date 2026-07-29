@@ -1,0 +1,95 @@
+.energy-wing-effect {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  transform-origin: center;
+  contain: layout style;
+}
+
+.energy-wing-effect--enhanced {
+  filter:
+    brightness(1.12)
+    saturate(1.12)
+    drop-shadow(0 0 8px var(--energy-wing-primary));
+  transform: scale(1.08);
+}
+
+.energy-wing-effect__halo {
+  animation: energy-wing-halo-pulse 5.6s ease-in-out infinite;
+}
+
+.energy-wing-effect__wing-motion {
+  transform-box: view-box;
+  transform-origin: 520px 420px;
+  animation: energy-wing-breathe 5.6s ease-in-out infinite;
+}
+
+.energy-wing-effect__main-feathers {
+  animation: energy-wing-main-pulse 3.8s ease-in-out infinite;
+}
+
+.energy-wing-effect__inner-feathers {
+  animation: energy-wing-inner-pulse 3.1s ease-in-out infinite reverse;
+}
+
+.energy-wing-effect__fragment {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0.86;
+}
+
+.energy-wing-effect__fragment--2,
+.energy-wing-effect__fragment--5 {
+  opacity: 0.7;
+}
+
+.energy-wing-effect__fragment--3,
+.energy-wing-effect__fragment--6 {
+  opacity: 0.94;
+}
+
+.energy-wing-effect__fragment--4,
+.energy-wing-effect__fragment--7 {
+  opacity: 0.78;
+}
+
+.energy-wing-effect__spark {
+  opacity: 0.72;
+}
+
+.energy-wing-effect--enhanced .energy-wing-effect__halo,
+.energy-wing-effect--enhanced .energy-wing-effect__main-feathers,
+.energy-wing-effect--enhanced .energy-wing-effect__inner-feathers {
+  animation-duration: 2.8s;
+}
+
+@keyframes energy-wing-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-4px) scale(1.006); }
+}
+
+@keyframes energy-wing-main-pulse {
+  0%, 100% { opacity: 0.88; }
+  50% { opacity: 1; }
+}
+
+@keyframes energy-wing-inner-pulse {
+  0%, 100% { opacity: 0.73; }
+  50% { opacity: 1; }
+}
+
+@keyframes energy-wing-halo-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 0.8; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .energy-wing-effect,
+  .energy-wing-effect * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

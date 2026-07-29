@@ -25,14 +25,45 @@ interface XiaoELongUpdateState {
   progress: number | null;
 }
 
+interface XiaoELongDesktopSettings {
+  openAtLogin: boolean;
+  panelAlwaysOnTop: boolean;
+  petDisplayMode: "dynamic" | "static" | "image";
+  petAnimationsEnabled: boolean;
+}
+
 interface Window {
   readonly xiaoelongDesktop?: {
     readonly isDesktop: boolean;
-    readonly role?: "auth" | "avatar" | "panel" | "imageViewer";
+    readonly role?: "auth" | "avatar" | "panel" | "divine" | "imageViewer";
     readonly setWindowMode?: (mode: "auth" | "collapsed" | "expanded") => void;
     readonly toggleHomePanel?: () => void;
     readonly openSettingsPanel?: () => void;
-    readonly notifyPanelReady?: () => void;
+    readonly openDivineSelection?: (
+      data?: import("@xiaoelong/shared").DeityWorshipTodayResponse | null
+    ) => Promise<{ ok: boolean; error?: string }>;
+    readonly getInitialDivineData?: () => import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+    readonly getInitialDivineSession?: () => {
+      requestId: number;
+      data: import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+    };
+    readonly onDivineData?: (
+      callback: (session: {
+        requestId: number;
+        data: import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+      }) => void
+    ) => () => void;
+    readonly notifyDivineReady?: (requestId: number) => void;
+    readonly updateDivineSelectionData?: (
+      data: import("@xiaoelong/shared").DeityWorshipTodayResponse
+    ) => void;
+    readonly closeDivineSelection?: (completed?: boolean) => void;
+    readonly getInitialPanelSession?: () => {
+      requestId: number;
+      view: "home" | "settings";
+    };
+    readonly notifyPanelReady?: (requestId: number) => void;
+    readonly getPanelVisibility?: () => boolean;
     readonly setPanelContentExtraHeight?: (height: number) => void;
     readonly notifyLogin?: (token: string) => void;
     readonly getPersistedAccessToken?: () => string | null;
@@ -50,27 +81,29 @@ interface Window {
       index: number;
     }) => void;
     readonly requestLogout?: () => void;
-    readonly getSettings?: () => Promise<{
-      openAtLogin: boolean;
-      panelAlwaysOnTop: boolean;
-    }>;
-    readonly setLoginAtStartup?: (enabled: boolean) => Promise<{
-      openAtLogin: boolean;
-      panelAlwaysOnTop: boolean;
-    }>;
-    readonly setPanelAlwaysOnTop?: (enabled: boolean) => Promise<{
-      openAtLogin: boolean;
-      panelAlwaysOnTop: boolean;
-    }>;
+    readonly getSettings?: () => Promise<XiaoELongDesktopSettings>;
+    readonly setLoginAtStartup?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;
+    readonly setPanelAlwaysOnTop?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;
+    readonly setPetDisplayMode?: (
+      mode: "dynamic" | "static" | "image"
+    ) => Promise<XiaoELongDesktopSettings>;
+    readonly setPetAnimationsEnabled?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;
     readonly getUpdateState?: () => Promise<XiaoELongUpdateState>;
     readonly checkForUpdates?: () => Promise<XiaoELongUpdateState>;
     readonly downloadUpdate?: () => Promise<XiaoELongUpdateState>;
     readonly installUpdate?: () => Promise<XiaoELongUpdateState>;
     readonly onUpdateState?: (callback: (state: XiaoELongUpdateState) => void) => () => void;
-    readonly onPanelViewChange?: (callback: (view: "home" | "settings") => void) => () => void;
-    readonly onSettingsChange?: (
-      callback: (settings: { openAtLogin: boolean; panelAlwaysOnTop: boolean }) => void
+    readonly onPanelViewChange?: (
+      callback: (session: { requestId: number; view: "home" | "settings" }) => void
     ) => () => void;
+    readonly onPanelVisibilityChange?: (callback: (visible: boolean) => void) => () => void;
+    readonly onDivineReturn?: (
+      callback: (state: {
+        completed: boolean;
+        data: import("@xiaoelong/shared").DeityWorshipTodayResponse | null;
+      }) => void
+    ) => () => void;
+    readonly onSettingsChange?: (callback: (settings: XiaoELongDesktopSettings) => void) => () => void;
     readonly onLogout?: (callback: () => void) => () => void;
     readonly onLogin?: (callback: (token: string) => void) => () => void;
     readonly onPlacementChange?: (

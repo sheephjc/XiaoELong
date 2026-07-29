@@ -199,6 +199,84 @@ export interface DailyMoodSetResponse {
   mood: DailyMood;
 }
 
+export const DEITY_CATALOG = [
+  { id: "hu", name: "胡神", blessing: "百🦌不萎加护" },
+  { id: "chui", name: "chui神", blessing: "愿你以虚实为牌，以奇迹为幕" },
+  { id: "a", name: "A神", blessing: "中暑导致的" },
+  { id: "mx", name: "mx神", blessing: "愿哆啦A梦赐你四次元的庇佑，口袋所开之处，困境皆化道具，未来皆通奇迹" },
+  { id: "guo", name: "郭神", blessing: "愿你的 Prompt 唤醒 LLM 的星火，愿你的 Agent 穿行知识迷宫，为你取回命运的最优解" },
+  { id: "chili", name: "🌶️神", blessing: "愿赤焰入魂，辛烈成冠；凡灼烧你者，终将铸成你的神格" },
+  { id: "daimeng_hf", name: "呆萌HF", blessing: "愿无垢之光庇佑你，使世界不忍伤害你的天真，命运也为你的迟钝让路" }
+] as const;
+
+export type DeityId = (typeof DEITY_CATALOG)[number]["id"];
+
+export type DeityRank = "mortal" | "demigod" | "true_god" | "main_god" | "creator_god";
+
+export const DEITY_RANKS = [
+  { id: "mortal", label: "凡人", minimum: 0, nextThreshold: 2 },
+  { id: "demigod", label: "半神", minimum: 2, nextThreshold: 5 },
+  { id: "true_god", label: "真神", minimum: 5, nextThreshold: 10 },
+  { id: "main_god", label: "主神", minimum: 10, nextThreshold: 20 },
+  { id: "creator_god", label: "创世神", minimum: 20, nextThreshold: null }
+] as const satisfies ReadonlyArray<{
+  id: DeityRank;
+  label: string;
+  minimum: number;
+  nextThreshold: number | null;
+}>;
+
+export function getDeityRank(totalWorships: number): DeityRank {
+  if (totalWorships >= 20) return "creator_god";
+  if (totalWorships >= 10) return "main_god";
+  if (totalWorships >= 5) return "true_god";
+  if (totalWorships >= 2) return "demigod";
+  return "mortal";
+}
+
+export function getDeityRankLabel(rank: DeityRank): string {
+  return DEITY_RANKS.find((item) => item.id === rank)?.label ?? "凡人";
+}
+
+export function getNextDeityThreshold(rank: DeityRank): number | null {
+  return DEITY_RANKS.find((item) => item.id === rank)?.nextThreshold ?? null;
+}
+
+export interface DeityStatus {
+  deityId: DeityId;
+  totalWorships: number;
+  rank: DeityRank;
+  nextThreshold: number | null;
+}
+
+export interface DeityWorshipRecord {
+  deityId: DeityId;
+  worshipDay: string;
+  worshippedAt: string;
+}
+
+export interface DeityWorshipTodayResponse {
+  worshipDay: string;
+  todayWorship: DeityWorshipRecord | null;
+  deities: DeityStatus[];
+}
+
+export interface DeityWorshipPayload {
+  deityId: DeityId;
+}
+
+export interface DeityWorshipResponse extends DeityWorshipTodayResponse {
+  ok: true;
+  blessing: string;
+  deity: DeityStatus;
+  previousRank: DeityRank;
+  rankAdvanced: boolean;
+}
+
+export interface DeityWorshipUpdatePayload {
+  deity: DeityStatus;
+}
+
 export interface GomokuGame {
   id: number;
   status: "invited" | "playing" | "finished" | "declined";
@@ -303,6 +381,7 @@ export interface ServerToClientEvents {
   "chat:message": (message: ChatMessage) => void;
   "question:update": (payload: DailyQuestionUpdatePayload) => void;
   "mood:update": (payload: DailyMoodUpdatePayload) => void;
+  "deity:worship": (payload: DeityWorshipUpdatePayload) => void;
   "gomoku:update": (payload: GomokuUpdatePayload) => void;
   "gomoku:end": (payload: GomokuEndPayload) => void;
 }

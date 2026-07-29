@@ -3,6 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { autoUpdater } = require("electron-updater");
+const { createRenderSession } = require("./render-session");
 
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
@@ -27,16 +28,24 @@ const SETTINGS_PANEL_HEIGHT = 420;
 const IMAGE_VIEWER_WIDTH = 840;
 const IMAGE_VIEWER_HEIGHT = 640;
 const PANEL_GAP = 12;
-const PANEL_READY_FALLBACK_MS = 150;
+const PANEL_READY_FALLBACK_MS = 3000;
 const MAX_PANEL_CONTENT_EXTRA_HEIGHT = 300;
 const DESKTOP_MARGIN_RIGHT = 28;
 const DESKTOP_MARGIN_BOTTOM = 34;
+const PET_DISPLAY_MODES = new Set(["dynamic", "static", "image"]);
 
 let authWindow = null;
 let authWindowReady = false;
 let pendingAuthShow = false;
 let avatarWindow = null;
 let panelWindow = null;
+let divineWindow = null;
+let divineWindowOpen = false;
+let divineWindowRevealed = false;
+let divineInitialData = null;
+let divineRevealRequestId = 0;
+let divinePendingRevealRequestId = 0;
+let divineRevealFallbackTimer = null;
 let imageViewerWindow = null;
 let tray = null;
 let serverProcess = null;
@@ -46,8 +55,11 @@ let panelPlacement = "upper-left";
 let currentWindowMode = "auth";
 let currentPanelView = "home";
 let panelAlwaysOnTop = true;
+let petDisplayMode = "dynamic";
 let panelRendererReady = false;
 let pendingPanelShow = false;
+let panelWindowRevealed = false;
+const panelRenderSession = createRenderSession();
 let panelReadyFallbackTimer = null;
 let panelRecoveryTimer = null;
 let panelRecoveryAttempts = 0;
@@ -72,6 +84,43 @@ function clamp(value, min, max) {
 
 function getSessionFilePath() {
   return path.join(app.getPath("userData"), "session.json");
+}
+
+function getDesktopSettingsFilePath() {
+  return path.join(app.getPath("userData"), "desktop-settings.json");
+}
+
+function loadPersistedDesktopSettings() {
+  petDisplayMode = "dynamic";
+  try {
+    const parsed = JSON.parse(fs.readFileSync(getDesktopSettingsFilePath(), "utf8"));
+    if (PET_DISPLAY_MODES.has(parsed?.petDisplayMode)) {
+      petDisplayMode = parsed.petDisplayMode;
+    } else if (typeof parsed?.petAnimationsEnabled === "boolean") {
+      petDisplayMode = parsed.petAnimationsEnabled ? "dynamic" : "static";
+    }
+  } catch {
+    // Missing or invalid preferences use the safe default.
+  }
+}
+
+function persistDesktopSettings() {
+  try {
+    const settingsFile = getDesktopSettingsFilePath();
+    const temporaryFile = `${settingsFile}.tmp`;
+    fs.mkdirSync(path.dirname(settingsFile), { recursive: true });
+    fs.writeFileSync(
+      temporaryFile,
+      JSON.stringify({
+        petDisplayMode,
+        petAnimationsEnabled: petDisplayMode === "dynamic"
+      }),
+      "utf8"
+    );
+    fs.renameSync(temporaryFile, settingsFile);
+  } catch (error) {
+    console.error("[Electron] Failed to persist desktop settings.", error);
+  }
 }
 
 function readPersistedAccessToken() {
@@ -299,7 +348,7 @@ function getWebPreferences(role) {
     preload: path.join(__dirname, "preload.js"),
     contextIsolation: true,
     nodeIntegration: false,
-    backgroundThrottling: role !== "panel",
+    backgroundThrottling: role !== "panel" && role !== "divine",
     additionalArguments: [`--xiaoelong-role=${role}`]
   };
 }
@@ -307,12 +356,14 @@ function getWebPreferences(role) {
 function getDesktopSettings() {
   return {
     openAtLogin: isDevelopment ? false : app.getLoginItemSettings().openAtLogin,
-    panelAlwaysOnTop
+    panelAlwaysOnTop,
+    petDisplayMode,
+    petAnimationsEnabled: petDisplayMode === "dynamic"
   };
 }
 
 function sendToRenderers(channel, payload) {
-  for (const targetWindow of [authWindow, avatarWindow, panelWindow]) {
+  for (const targetWindow of [authWindow, avatarWindow, panelWindow, divineWindow]) {
     if (targetWindow && !targetWindow.webContents.isDestroyed()) {
       targetWindow.webContents.send(channel, payload);
     }
@@ -321,7 +372,18 @@ function sendToRenderers(channel, payload) {
 
 function sendPanelView() {
   if (panelWindow && !panelWindow.webContents.isDestroyed()) {
-    panelWindow.webContents.send("desktop:panel-view", currentPanelView);
+    panelWindow.webContents.send("desktop:panel-view", {
+      requestId: panelRenderSession.current(),
+      view: currentPanelView
+    });
+  }
+}
+
+function sendPanelVisibility(
+  visible = Boolean(panelOpen && panelWindowRevealed && panelWindow?.isVisible())
+) {
+  if (panelWindow && !panelWindow.webContents.isDestroyed()) {
+    panelWindow.webContents.send("desktop:panel-visibility", Boolean(visible));
   }
 }
 
@@ -418,18 +480,51 @@ function setPanelAlwaysOnTop(enabled) {
   broadcastSettings();
 }
 
+function setPetDisplayMode(mode) {
+  if (!PET_DISPLAY_MODES.has(mode)) {
+    return;
+  }
+  petDisplayMode = mode;
+  persistDesktopSettings();
+  broadcastSettings();
+}
+
+function setPetAnimationsEnabled(enabled) {
+  setPetDisplayMode(enabled ? "dynamic" : "static");
+}
+
 function parkPanelWindow() {
   if (!panelWindow || panelWindow.isDestroyed()) {
     return;
   }
 
   panelWindow.setIgnoreMouseEvents(true);
+  panelWindowRevealed = false;
   if (panelWindow.isVisible()) {
     panelWindow.hide();
+  }
+  panelWindow.setOpacity(1);
+  if (!panelWindow.webContents.isDestroyed()) {
+    panelWindow.webContents.setBackgroundThrottling(false);
+  }
+  sendPanelVisibility(false);
+}
+
+function stagePanelWindow() {
+  if (!panelWindow || panelWindow.isDestroyed()) {
+    return;
+  }
+
+  panelWindow.setIgnoreMouseEvents(true);
+  panelWindowRevealed = false;
+  panelWindow.setOpacity(0);
+  if (!panelWindow.isVisible()) {
+    panelWindow.showInactive();
   }
   if (!panelWindow.webContents.isDestroyed()) {
     panelWindow.webContents.setBackgroundThrottling(false);
   }
+  sendPanelVisibility(false);
 }
 
 function revealPanelWindow() {
@@ -437,15 +532,19 @@ function revealPanelWindow() {
     return;
   }
 
+  panelWindowRevealed = true;
   panelWindow.setIgnoreMouseEvents(false);
   if (!panelWindow.webContents.isDestroyed()) {
     panelWindow.webContents.setBackgroundThrottling(false);
   }
   if (!panelWindow.isVisible()) {
-    panelWindow.show();
-    return;
+    panelWindow.setOpacity(0);
+    panelWindow.showInactive();
   }
   panelWindow.moveTop();
+  panelWindow.setOpacity(1);
+  panelWindow.show();
+  sendPanelVisibility(true);
 }
 
 function showPanelWhenReady() {
@@ -487,6 +586,11 @@ function schedulePanelRecovery(reason) {
   panelRecoveryAttempts += 1;
   panelRendererReady = false;
   pendingPanelShow = panelOpen;
+  if (panelOpen) {
+    panelRenderSession.ensurePending();
+  } else if (!panelOpen) {
+    panelRenderSession.cancel();
+  }
   clearPanelReadyFallback();
   parkPanelWindow();
 
@@ -514,9 +618,7 @@ function schedulePanelReadyFallback() {
       return;
     }
 
-    panelRendererReady = true;
     pendingPanelShow = false;
-    updatePanelBounds();
     revealPanelWindow();
   }, PANEL_READY_FALLBACK_MS);
 }
@@ -572,8 +674,10 @@ function getTrayIcon() {
 
 function hideAllWindows() {
   pendingPanelShow = false;
+  panelRenderSession.cancel();
   clearPanelReadyFallback();
   parkPanelWindow();
+  closeDivineSelection({ showPanel: false });
   for (const targetWindow of [authWindow, avatarWindow, imageViewerWindow]) {
     if (targetWindow && !targetWindow.isDestroyed()) {
       targetWindow.hide();
@@ -582,6 +686,12 @@ function hideAllWindows() {
 }
 
 function showCurrentModeFromTray() {
+  if (divineWindowOpen && divineWindow && !divineWindow.isDestroyed()) {
+    divineWindow.show();
+    divineWindow.focus();
+    return;
+  }
+
   if (currentWindowMode === "expanded") {
     showExpandedMode(currentPanelView);
     return;
@@ -734,9 +844,12 @@ function createPanelWindow() {
   panelWindow.setIgnoreMouseEvents(true);
   loadRenderer(panelWindow, "panel");
   panelWindow.webContents.on("did-finish-load", () => {
-    panelRecoveryAttempts = 0;
     clearPanelRecoveryTimer();
+    if (panelOpen && pendingPanelShow) {
+      stagePanelWindow();
+    }
     sendPanelView();
+    sendPanelVisibility();
     broadcastSettings();
     if (panelOpen && pendingPanelShow) {
       showPanelWhenReady();
@@ -762,11 +875,194 @@ function createPanelWindow() {
     panelWindow = null;
     panelRendererReady = false;
     pendingPanelShow = false;
+    panelWindowRevealed = false;
+    panelRenderSession.cancel();
     clearPanelReadyFallback();
     clearPanelRecoveryTimer();
     panelRecoveryAttempts = 0;
   });
   return panelWindow;
+}
+
+function getDivineDisplay() {
+  const referenceWindow =
+    panelWindow && !panelWindow.isDestroyed()
+      ? panelWindow
+      : avatarWindow && !avatarWindow.isDestroyed()
+        ? avatarWindow
+        : null;
+  return referenceWindow ? screen.getDisplayMatching(referenceWindow.getBounds()) : screen.getPrimaryDisplay();
+}
+
+function restorePanelAfterDivine(completed = false, data = null) {
+  currentWindowMode = "expanded";
+  if (panelWindow && !panelWindow.isDestroyed() && !panelWindow.webContents.isDestroyed()) {
+    panelRendererReady = false;
+    panelWindow.webContents.send("desktop:divine-return", {
+      completed: Boolean(completed),
+      data: data && typeof data === "object" ? data : null
+    });
+  }
+  showExpandedMode("home", { forceRendererSync: true });
+}
+
+function clearDivineRevealFallback() {
+  if (divineRevealFallbackTimer) {
+    clearTimeout(divineRevealFallbackTimer);
+    divineRevealFallbackTimer = null;
+  }
+}
+
+function closeDivineSelection(options = {}) {
+  const { completed = false, showPanel = true } = options;
+  const targetWindow = divineWindow;
+  const returnData = completed && divineInitialData && typeof divineInitialData === "object"
+    ? divineInitialData
+    : null;
+  divineWindowOpen = false;
+  divineWindowRevealed = false;
+  divinePendingRevealRequestId = 0;
+  clearDivineRevealFallback();
+  divineInitialData = null;
+  if (targetWindow && !targetWindow.isDestroyed()) {
+    targetWindow.hide();
+    if (divineWindow === targetWindow) {
+      divineWindow = null;
+    }
+    targetWindow.destroy();
+  }
+
+  if (showPanel) {
+    restorePanelAfterDivine(completed, returnData);
+  }
+}
+
+function revealDivineWindow(targetWindow) {
+  if (!divineWindowOpen || divineWindow !== targetWindow || targetWindow.isDestroyed()) {
+    return;
+  }
+  divineWindowRevealed = true;
+  if (!targetWindow.isVisible()) {
+    targetWindow.setOpacity(0);
+    targetWindow.showInactive();
+  }
+  targetWindow.setIgnoreMouseEvents(false);
+  targetWindow.setOpacity(1);
+  targetWindow.show();
+  targetWindow.focus();
+}
+
+function createDivineWindow() {
+  if (divineWindow && !divineWindow.isDestroyed()) {
+    return divineWindow;
+  }
+
+  const display = getDivineDisplay();
+  const targetWindow = new BrowserWindow({
+    ...display.workArea,
+    minWidth: 720,
+    minHeight: 480,
+    frame: false,
+    transparent: true,
+    backgroundColor: "#00000000",
+    resizable: false,
+    movable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    webPreferences: getWebPreferences("divine")
+  });
+  divineWindow = targetWindow;
+
+  loadRenderer(targetWindow, "divine");
+  targetWindow.webContents.on("did-finish-load", () => {
+    if (
+      divineWindowOpen &&
+      divineWindow === targetWindow &&
+      divinePendingRevealRequestId > 0 &&
+      !targetWindow.webContents.isDestroyed()
+    ) {
+      targetWindow.webContents.send("desktop:divine-data", {
+        requestId: divinePendingRevealRequestId,
+        data: divineInitialData
+      });
+    }
+  });
+  targetWindow.on("blur", () => {
+    setTimeout(() => {
+      if (
+        divineWindowOpen &&
+        divineWindowRevealed &&
+        divineWindow === targetWindow &&
+        !targetWindow.isDestroyed() &&
+        !targetWindow.isFocused()
+      ) {
+        closeDivineSelection({
+          completed: Boolean(divineInitialData?.todayWorship),
+          showPanel: true
+        });
+      }
+    }, 80);
+  });
+  targetWindow.on("closed", () => {
+    if (divineWindow !== targetWindow) {
+      return;
+    }
+    const shouldRestorePanel = divineWindowOpen;
+    const completed = Boolean(divineInitialData?.todayWorship);
+    const returnData = completed && divineInitialData && typeof divineInitialData === "object"
+      ? divineInitialData
+      : null;
+    divineWindow = null;
+    divineWindowOpen = false;
+    divineWindowRevealed = false;
+    divineInitialData = null;
+    clearDivineRevealFallback();
+    if (shouldRestorePanel) {
+      restorePanelAfterDivine(completed, returnData);
+    }
+  });
+  return targetWindow;
+}
+
+function showDivineSelection(initialData = null) {
+  divineInitialData = initialData && typeof initialData === "object" ? initialData : null;
+  divinePendingRevealRequestId = ++divineRevealRequestId;
+  divineWindowOpen = true;
+  divineWindowRevealed = false;
+  const display = getDivineDisplay();
+  panelOpen = false;
+  pendingPanelShow = false;
+  clearPanelReadyFallback();
+  parkPanelWindow();
+  if (avatarWindow && !avatarWindow.isDestroyed()) {
+    avatarWindow.hide();
+  }
+
+  const targetWindow = createDivineWindow();
+  targetWindow.setBounds(display.workArea, false);
+  targetWindow.setIgnoreMouseEvents(true);
+  targetWindow.setOpacity(0);
+  if (!targetWindow.isVisible()) {
+    targetWindow.showInactive();
+  }
+  if (!targetWindow.webContents.isLoadingMainFrame()) {
+    targetWindow.webContents.send("desktop:divine-data", {
+      requestId: divinePendingRevealRequestId,
+      data: divineInitialData
+    });
+  }
+  clearDivineRevealFallback();
+  const fallbackRequestId = divinePendingRevealRequestId;
+  divineRevealFallbackTimer = setTimeout(() => {
+    divineRevealFallbackTimer = null;
+    if (divineWindowOpen && divinePendingRevealRequestId === fallbackRequestId) {
+      divinePendingRevealRequestId = 0;
+      revealDivineWindow(targetWindow);
+    }
+  }, 3000);
 }
 
 function sendImageViewerState() {
@@ -888,9 +1184,11 @@ function updatePanelBounds() {
 }
 
 function showAuthMode() {
+  closeDivineSelection({ showPanel: false });
   panelOpen = false;
   pendingAuthShow = true;
   pendingPanelShow = false;
+  panelRenderSession.cancel();
   clearPanelReadyFallback();
   if (avatarWindow) {
     avatarWindow.hide();
@@ -904,9 +1202,11 @@ function showAuthMode() {
 }
 
 function showCollapsedMode() {
+  closeDivineSelection({ showPanel: false });
   panelOpen = false;
   pendingAuthShow = false;
   pendingPanelShow = false;
+  panelRenderSession.cancel();
   clearPanelReadyFallback();
   if (authWindow) {
     authWindow.hide();
@@ -922,7 +1222,9 @@ function showCollapsedMode() {
   broadcastSettings();
 }
 
-function showExpandedMode(panelView = "home") {
+function showExpandedMode(panelView = "home", options = {}) {
+  const { forceRendererSync = false } = options;
+  closeDivineSelection({ showPanel: false });
   panelOpen = true;
   pendingAuthShow = false;
   const viewChanged = currentPanelView !== panelView;
@@ -931,11 +1233,13 @@ function showExpandedMode(panelView = "home") {
     authWindow.hide();
   }
   createAvatarWindow().show();
-  const nextPanelWindow = createPanelWindow();
-  if (viewChanged || !panelRendererReady) {
+  createPanelWindow();
+  const requiresRendererSync = forceRendererSync || viewChanged || !panelRendererReady;
+  if (requiresRendererSync) {
     panelRendererReady = false;
     pendingPanelShow = true;
-    parkPanelWindow();
+    panelRenderSession.begin();
+    stagePanelWindow();
   }
   updatePanelBounds();
   sendPanelView();
@@ -1001,6 +1305,7 @@ function stopEmbeddedServer() {
 }
 
 app.whenReady().then(() => {
+  loadPersistedDesktopSettings();
   setupAutoUpdater();
   startEmbeddedServer();
   createTray();
@@ -1008,7 +1313,7 @@ app.whenReady().then(() => {
 });
 
 app.on("second-instance", () => {
-  const targetWindow = panelWindow ?? avatarWindow ?? authWindow;
+  const targetWindow = (divineWindowOpen ? divineWindow : null) ?? panelWindow ?? avatarWindow ?? authWindow;
   if (!targetWindow || targetWindow.isDestroyed()) {
     return;
   }
@@ -1024,13 +1329,30 @@ ipcMain.on("desktop:window-mode", (_event, mode) => {
   }
 });
 
-ipcMain.on("desktop:panel-ready", (event) => {
+ipcMain.on("desktop:panel-initial-session:get", (event) => {
   if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    event.returnValue = { requestId: 0, view: "home" };
+    return;
+  }
+
+  event.returnValue = {
+    requestId: panelRenderSession.current(),
+    view: currentPanelView
+  };
+});
+
+ipcMain.on("desktop:panel-ready", (event, payload) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return;
+  }
+  if (!panelRenderSession.accept(payload?.requestId)) {
     return;
   }
 
   panelRendererReady = true;
   clearPanelReadyFallback();
+  clearPanelRecoveryTimer();
+  panelRecoveryAttempts = 0;
   if (panelOpen && pendingPanelShow) {
     updatePanelBounds();
     showPanelWhenReady();
@@ -1088,6 +1410,84 @@ ipcMain.on("desktop:open-settings", () => {
   showExpandedMode("settings");
 });
 
+ipcMain.on("desktop:divine-open", (event, payload) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return;
+  }
+  showDivineSelection(payload?.data);
+});
+
+ipcMain.handle("desktop:divine-open-request", (event, payload) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return { ok: false, error: "当前窗口无法打开神选大图。" };
+  }
+  showDivineSelection(payload?.data);
+  return { ok: true };
+});
+
+ipcMain.on("desktop:divine-initial-data:get", (event) => {
+  if (!divineWindow || divineWindow.isDestroyed() || event.sender !== divineWindow.webContents) {
+    event.returnValue = null;
+    return;
+  }
+  event.returnValue = divineInitialData;
+});
+
+ipcMain.on("desktop:divine-initial-session:get", (event) => {
+  if (!divineWindow || divineWindow.isDestroyed() || event.sender !== divineWindow.webContents) {
+    event.returnValue = { requestId: 0, data: null };
+    return;
+  }
+  event.returnValue = {
+    requestId: divinePendingRevealRequestId,
+    data: divineInitialData
+  };
+});
+
+ipcMain.on("desktop:divine-ready", (event, payload) => {
+  if (
+    !divineWindowOpen ||
+    !divineWindow ||
+    divineWindow.isDestroyed() ||
+    event.sender !== divineWindow.webContents ||
+    Number(payload?.requestId) <= 0 ||
+    Number(payload?.requestId) !== divinePendingRevealRequestId
+  ) {
+    return;
+  }
+  clearDivineRevealFallback();
+  divinePendingRevealRequestId = 0;
+  revealDivineWindow(divineWindow);
+});
+
+ipcMain.on("desktop:divine-close", (event, payload) => {
+  if (!divineWindow || divineWindow.isDestroyed() || event.sender !== divineWindow.webContents) {
+    return;
+  }
+  closeDivineSelection({ completed: Boolean(payload?.completed), showPanel: true });
+});
+
+ipcMain.on("desktop:divine-state", (event, payload) => {
+  if (
+    !divineWindowOpen ||
+    !divineWindow ||
+    divineWindow.isDestroyed() ||
+    event.sender !== divineWindow.webContents ||
+    !payload?.data ||
+    typeof payload.data !== "object"
+  ) {
+    return;
+  }
+  if (
+    divineInitialData?.worshipDay === payload.data.worshipDay &&
+    divineInitialData?.todayWorship &&
+    !payload.data.todayWorship
+  ) {
+    return;
+  }
+  divineInitialData = payload.data;
+});
+
 ipcMain.on("desktop:hide-all-windows", () => {
   hideAllWindows();
 });
@@ -1119,6 +1519,16 @@ ipcMain.on("desktop:login", (_event, token) => {
 
 ipcMain.on("desktop:session-token:get", (event) => {
   event.returnValue = readPersistedAccessToken();
+});
+
+ipcMain.on("desktop:panel-visibility:get", (event) => {
+  event.returnValue = Boolean(
+    panelOpen &&
+    panelWindowRevealed &&
+    panelWindow &&
+    !panelWindow.isDestroyed() &&
+    panelWindow.isVisible()
+  );
 });
 
 ipcMain.on("desktop:session-token:set", (_event, token) => {
@@ -1160,6 +1570,16 @@ ipcMain.handle("desktop:settings:set-login-at-startup", (_event, enabled) => {
 
 ipcMain.handle("desktop:settings:set-panel-always-on-top", (_event, enabled) => {
   setPanelAlwaysOnTop(Boolean(enabled));
+  return getDesktopSettings();
+});
+
+ipcMain.handle("desktop:settings:set-pet-display-mode", (_event, mode) => {
+  setPetDisplayMode(mode);
+  return getDesktopSettings();
+});
+
+ipcMain.handle("desktop:settings:set-pet-animations-enabled", (_event, enabled) => {
+  setPetAnimationsEnabled(Boolean(enabled));
   return getDesktopSettings();
 });
 

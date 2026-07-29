@@ -201,6 +201,20 @@ CREATE TABLE IF NOT EXISTS daily_moods (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS deity_worships (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(36) NOT NULL,
+  deity_id VARCHAR(32) NOT NULL,
+  worship_day DATE NOT NULL,
+  worshipped_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_deity_worships_user_day (user_id, worship_day),
+  KEY idx_deity_worships_deity_id (deity_id),
+  KEY idx_deity_worships_day (worship_day),
+  CONSTRAINT fk_deity_worships_user
+    FOREIGN KEY (user_id) REFERENCES users(id)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS gomoku_games (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   status ENUM('invited', 'playing', 'finished', 'declined') NOT NULL DEFAULT 'invited',

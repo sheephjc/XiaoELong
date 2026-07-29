@@ -1,0 +1,53 @@
+{
+  "cellWidth": 384,
+  "cellHeight": 416,
+  "columns": 8,
+  "rows": 6,
+  "animations": {
+    "idle": {
+      "row": 0,
+      "frames": 6,
+      "fps": 3,
+      "loops": null,
+      "reducedMotionFrame": 0
+    },
+    "drag-right": {
+      "row": 1,
+      "frames": 8,
+      "fps": 10,
+      "loops": null,
+      "reducedMotionFrame": 3
+    },
+    "drag-left": {
+      "row": 2,
+      "frames": 8,
+      "fps": 10,
+      "loops": null,
+      "reducedMotionFrame": 3
+    },
+    "victory": {
+      "row": 3,
+      "frames": 8,
+      "fps": 8,
+      "loops": 2,
+      "reducedMotionFrame": 3,
+      "reducedMotionDurationMs": 1200
+    },
+    "defeat": {
+      "row": 4,
+      "frames": 8,
+      "fps": 6,
+      "loops": 2,
+      "reducedMotionFrame": 4,
+      "reducedMotionDurationMs": 1200
+    },
+    "draw": {
+      "row": 5,
+      "frames": 6,
+      "fps": 4,
+      "loops": 1,
+      "reducedMotionFrame": 2,
+      "reducedMotionDurationMs": 1200
+    }
+  }
+}

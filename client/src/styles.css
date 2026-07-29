@@ -111,7 +111,7 @@ body {
   left: 5px;
   bottom: 0;
   width: 160px;
-  height: 160px;
+  height: 174px;
   border-radius: 0;
   border: 0;
   background: transparent;
@@ -135,6 +135,37 @@ body {
   object-position: center;
   user-select: none;
   pointer-events: none;
+}
+
+.pet-sprite {
+  position: relative;
+  display: block;
+  width: 156px;
+  height: 169px;
+  pointer-events: none;
+}
+
+.pet-sprite-canvas,
+.pet-sprite-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pet-sprite-canvas.hidden,
+.pet-sprite-fallback.hidden {
+  visibility: hidden;
+}
+
+.pet-sprite.image-only .pet-sprite-fallback {
+  inset: 50% auto auto 50%;
+  width: 154px;
+  height: 154px;
+  transform: translate(-50%, -50%);
 }
 
 .avatar-mood-prompt {
@@ -1400,6 +1431,58 @@ button:disabled {
   box-shadow: 0 6px 14px rgba(31, 138, 112, 0.12);
 }
 
+.chat-new-message-pill:hover {
+  border-color: #8fd2bc;
+  background: #ddf7ed;
+}
+
+.chat-unread-jump {
+  position: relative;
+  display: grid;
+  width: 34px;
+  min-width: 34px;
+  height: 30px;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid rgba(75, 153, 128, 0.22);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(246, 255, 251, 0.96), rgba(229, 247, 240, 0.92));
+  color: #1c8067;
+  padding: 0 !important;
+  box-shadow: 0 5px 13px rgba(31, 138, 112, 0.13);
+}
+
+.chat-unread-jump:hover {
+  border-color: rgba(43, 148, 115, 0.42);
+  background: #e4f8f0;
+  color: #126c56;
+  transform: translateY(-1px);
+}
+
+.chat-unread-jump > span {
+  font-size: 20px;
+  font-weight: 760;
+  line-height: 1;
+}
+
+.chat-unread-jump small {
+  position: absolute;
+  top: -6px;
+  right: -7px;
+  display: grid;
+  min-width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 2px solid #f8fffc;
+  border-radius: 999px;
+  background: #e96d55;
+  color: #fff;
+  padding: 0 4px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .daily-card,
 .gomoku-card {
   display: flex;
@@ -2302,8 +2385,11 @@ button:disabled {
   display: block;
   width: 100%;
   min-height: 0;
-  flex: 0 0 auto;
-  margin-top: auto;
+  flex: 1 1 auto;
+  margin-top: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(76, 129, 112, 0.24) transparent;
 }
 
 .settings-panel .settings-topbar h1 {
@@ -2335,8 +2421,10 @@ button:disabled {
   grid-column: auto;
 }
 
-.settings-panel {
+.settings-panel,
+.desktop-runtime .settings-panel {
   align-content: stretch;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .settings-panel .panel-action-buttons {
@@ -2356,6 +2444,7 @@ button:disabled {
 .settings-content {
   display: flex;
   height: 100%;
+  width: 100%;
   min-height: 0;
   flex-direction: column;
   gap: 10px;
@@ -2489,7 +2578,7 @@ button:disabled {
 
 .settings-app-version {
   flex: 0 0 auto;
-  margin: 7px 0 0;
+  margin: 0;
   color: #7a928b;
   font-size: 11px;
   font-weight: 700;
@@ -2502,8 +2591,20 @@ button:disabled {
   align-content: start;
 }
 
-.settings-panel .panel-action-buttons .danger-button {
-  grid-column: span 2;
+.settings-bottom-bar {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 7px;
+  margin-top: auto;
+  border-top: 1px solid #e3eee8;
+  padding-top: 8px;
+}
+
+.settings-bottom-bar .danger-button {
+  width: 100%;
+  min-height: 32px;
+  border-radius: 11px;
+  font-size: 12px;
 }
 
 .settings-panel.confirming .settings-content {
@@ -2636,16 +2737,244 @@ button:disabled {
   overflow: hidden;
 }
 
-.gomoku-board {
+.gomoku-board-wrap {
+  position: relative;
   flex: 0 0 auto;
   align-self: center;
   justify-self: center;
   width: min(100%, 310px);
   max-width: 100%;
-  max-height: none;
   aspect-ratio: 1 / 1;
   margin-top: auto;
   margin-bottom: auto;
+  isolation: isolate;
+}
+
+.gomoku-board {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  aspect-ratio: 1 / 1;
+  margin: 0;
+  z-index: 1;
+}
+
+.gomoku-board-wrap.victory .gomoku-board {
+  border-color: #e5b93f;
+  animation: gomoku-victory-board 820ms ease-out 2 alternate;
+  box-shadow:
+    0 0 0 3px rgba(255, 224, 119, 0.28),
+    0 0 22px rgba(245, 177, 48, 0.3);
+}
+
+.gomoku-board-wrap.defeat .gomoku-board {
+  border-color: #9eb8c7;
+  animation: gomoku-defeat-board 520ms ease-out;
+  box-shadow: 0 0 0 3px rgba(134, 166, 184, 0.14);
+}
+
+.gomoku-result-effect {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.gomoku-result-effect.victory {
+  animation: gomoku-result-effect-out 3.8s ease-out forwards;
+}
+
+.gomoku-firework {
+  --firework-delay: 0s;
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  color: #ff6b65;
+}
+
+.gomoku-firework::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  content: "";
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: gomoku-firework-ring 760ms ease-out var(--firework-delay) forwards;
+}
+
+.gomoku-firework-1 {
+  --firework-delay: 0s;
+  top: 5%;
+  left: -36px;
+  color: #ff6b65;
+}
+
+.gomoku-firework-2 {
+  --firework-delay: 0.34s;
+  top: -34px;
+  right: 6%;
+  color: #55c9a5;
+}
+
+.gomoku-firework-3 {
+  --firework-delay: 0.7s;
+  top: 38%;
+  right: -36px;
+  color: #7a8ff0;
+}
+
+.gomoku-firework-4 {
+  --firework-delay: 1.05s;
+  right: 10%;
+  bottom: -34px;
+  color: #ffb43f;
+}
+
+.gomoku-firework-5 {
+  --firework-delay: 1.36s;
+  bottom: 10%;
+  left: -36px;
+  color: #ef72b4;
+}
+
+.gomoku-firework-6 {
+  --firework-delay: 1.68s;
+  top: -34px;
+  left: 20%;
+  color: #ffd65a;
+}
+
+.gomoku-firework-particle {
+  --firework-angle: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0;
+  box-shadow: 0 0 5px currentColor;
+  animation: gomoku-firework-particle 920ms cubic-bezier(0.2, 0.7, 0.25, 1) var(--firework-delay) forwards;
+}
+
+.gomoku-firework-particle:nth-child(2) { --firework-angle: 36deg; }
+.gomoku-firework-particle:nth-child(3) { --firework-angle: 72deg; }
+.gomoku-firework-particle:nth-child(4) { --firework-angle: 108deg; }
+.gomoku-firework-particle:nth-child(5) { --firework-angle: 144deg; }
+.gomoku-firework-particle:nth-child(6) { --firework-angle: 180deg; }
+.gomoku-firework-particle:nth-child(7) { --firework-angle: 216deg; }
+.gomoku-firework-particle:nth-child(8) { --firework-angle: 252deg; }
+.gomoku-firework-particle:nth-child(9) { --firework-angle: 288deg; }
+.gomoku-firework-particle:nth-child(10) { --firework-angle: 324deg; }
+
+.gomoku-victory-glint {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  color: #f2b931;
+  font-size: 25px;
+  line-height: 1;
+  opacity: 0;
+  filter: drop-shadow(0 2px 4px rgba(199, 125, 17, 0.25));
+  animation: gomoku-victory-glint 1.3s ease-out 0.85s both;
+}
+
+.gomoku-result-effect.defeat {
+  animation: gomoku-result-effect-out 2.4s ease-out forwards;
+}
+
+.gomoku-defeat-sigh {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 42px;
+  height: 13px;
+  border-bottom: 3px solid rgba(100, 139, 160, 0.65);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translateX(-50%);
+  animation: gomoku-defeat-sigh 1.25s ease-out 0.18s both;
+}
+
+.gomoku-defeat-drop {
+  position: absolute;
+  top: -5px;
+  width: 6px;
+  height: 10px;
+  border-radius: 55% 45% 60% 40%;
+  background: #82afc5;
+  opacity: 0;
+  transform: rotate(18deg);
+  animation: gomoku-defeat-drop 1.25s ease-in forwards;
+}
+
+.gomoku-defeat-drop-1 { left: 8%; animation-delay: 0.08s; }
+.gomoku-defeat-drop-2 { left: 22%; animation-delay: 0.28s; }
+.gomoku-defeat-drop-3 { left: 38%; animation-delay: 0.15s; }
+.gomoku-defeat-drop-4 { left: 56%; animation-delay: 0.38s; }
+.gomoku-defeat-drop-5 { left: 71%; animation-delay: 0.22s; }
+.gomoku-defeat-drop-6 { left: 86%; animation-delay: 0.44s; }
+.gomoku-defeat-drop-7 { left: 96%; animation-delay: 0.12s; }
+
+@keyframes gomoku-victory-board {
+  from { transform: scale(1); }
+  to { transform: scale(1.012); }
+}
+
+@keyframes gomoku-defeat-board {
+  0%, 100% { transform: translateX(0); filter: saturate(1); }
+  28% { transform: translateX(-3px); filter: saturate(0.72); }
+  55% { transform: translateX(2px); filter: saturate(0.8); }
+  78% { transform: translateX(-1px); }
+}
+
+@keyframes gomoku-firework-particle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--firework-angle)) translateY(-2px) scale(0.35);
+  }
+  14% { opacity: 1; }
+  72% { opacity: 0.9; }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) rotate(var(--firework-angle)) translateY(-34px) scale(0.15);
+  }
+}
+
+@keyframes gomoku-firework-ring {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  24% { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(3.5); }
+}
+
+@keyframes gomoku-victory-glint {
+  0% { opacity: 0; transform: translate(-50%, 8px) rotate(-24deg) scale(0.4); }
+  45% { opacity: 1; transform: translate(-50%, -4px) rotate(10deg) scale(1.18); }
+  100% { opacity: 0; transform: translate(-50%, -12px) rotate(22deg) scale(0.75); }
+}
+
+@keyframes gomoku-defeat-sigh {
+  0% { opacity: 0; transform: translate(-50%, -7px) scaleX(0.4); }
+  32% { opacity: 0.72; }
+  100% { opacity: 0; transform: translate(-50%, 13px) scaleX(1); }
+}
+
+@keyframes gomoku-defeat-drop {
+  0% { opacity: 0; transform: translateY(0) rotate(18deg) scale(0.65); }
+  20% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateY(42px) rotate(18deg) scale(0.9); }
+}
+
+@keyframes gomoku-result-effect-out {
+  0%, 76% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 .desktop-runtime .gomoku-layout {
@@ -2656,8 +2985,23 @@ button:disabled {
   padding: 10px;
 }
 
-.desktop-runtime .gomoku-board {
+.desktop-runtime .gomoku-board-wrap {
   width: min(100%, 290px);
+}
+
+.desktop-runtime .gomoku-board {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gomoku-board-wrap.victory .gomoku-board,
+  .gomoku-board-wrap.defeat .gomoku-board {
+    animation: none;
+  }
+
+  .gomoku-result-effect {
+    display: none;
+  }
 }
 
 .avatar-widget.has-mood-prompt {
@@ -2679,6 +3023,1816 @@ button:disabled {
 .desktop-runtime.desktop-role-avatar .avatar-widget.has-mood-prompt .avatar-dock.open {
   right: 12px !important;
   left: auto !important;
+}
+
+/* 北斗神位视觉校正：明确王座结构，并让光晕始终以头像中心定位。 */
+.throne-halo,
+.throne-arm,
+.throne-seat {
+  position: absolute;
+  pointer-events: none;
+}
+
+.throne-halo {
+  z-index: 2;
+  top: 9%;
+  left: 50%;
+  width: clamp(78px, 7.8vw, 124px);
+  aspect-ratio: 1;
+  border: 2px solid color-mix(in srgb, var(--deity-accent) 68%, white);
+  border-radius: 50%;
+  opacity: 0;
+  background: radial-gradient(circle, transparent 54%, var(--deity-glow) 72%, transparent 74%);
+  box-shadow: inset 0 0 16px var(--deity-glow), 0 0 18px var(--deity-glow);
+  transform: translateX(-50%);
+  transform-origin: center;
+}
+
+.throne-arm {
+  z-index: 2;
+  bottom: 15%;
+  width: 22%;
+  height: 24%;
+  opacity: 0;
+  border: 2px solid color-mix(in srgb, var(--deity-accent) 62%, white);
+  background: linear-gradient(180deg, var(--deity-soft), color-mix(in srgb, var(--deity-deep) 68%, #241d2a));
+  box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.28), 0 0 10px var(--deity-glow);
+}
+
+.throne-arm-left {
+  left: 4%;
+  border-radius: 65% 28% 28% 45%;
+  transform: rotate(-7deg);
+}
+
+.throne-arm-right {
+  right: 4%;
+  border-radius: 28% 65% 45% 28%;
+  transform: rotate(7deg);
+}
+
+.throne-seat {
+  z-index: 2;
+  right: 20%;
+  bottom: 8%;
+  left: 20%;
+  height: 18%;
+  opacity: 0;
+  border: 2px solid color-mix(in srgb, var(--deity-accent) 64%, white);
+  border-radius: 50% 50% 35% 35%;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--deity-soft) 76%, white), var(--deity-deep));
+  box-shadow: inset 0 4px 8px rgba(255, 255, 255, 0.26), 0 4px 10px rgba(14, 12, 22, 0.32);
+  transform: perspective(50px) rotateX(28deg);
+}
+
+.throne-identity span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 58%, white);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--deity-deep) 88%, #171923);
+  color: #fff9df;
+  padding: 2px 7px;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.56);
+  box-shadow: 0 2px 7px rgba(7, 12, 18, 0.26), 0 0 7px var(--deity-glow);
+}
+
+.constellation-node.rank-mortal .throne-identity span {
+  border-color: #70817c;
+  background: #34453f;
+  color: #f4f7f5;
+}
+
+.constellation-node.rank-true_god .throne-identity span {
+  border-color: #f0cf70;
+  background: #7d5917;
+}
+
+.constellation-node.rank-main_god .throne-identity span {
+  border-color: #e2bd65;
+  background: linear-gradient(90deg, #5d347d, #8a5d1d);
+}
+
+.constellation-node.rank-creator_god .throne-identity span {
+  border-color: #f4d77a;
+  background: linear-gradient(105deg, #6b3d96, #267b9c, #9b5d38);
+}
+
+.constellation-node.rank-demigod .throne-halo,
+.constellation-node.rank-true_god .throne-halo,
+.constellation-node.rank-main_god .throne-halo,
+.constellation-node.rank-creator_god .throne-halo {
+  opacity: 0.86;
+  animation: throne-halo-breathe 3s ease-in-out infinite;
+}
+
+.constellation-node.rank-demigod .throne-arm,
+.constellation-node.rank-demigod .throne-seat,
+.constellation-node.rank-true_god .throne-arm,
+.constellation-node.rank-true_god .throne-seat,
+.constellation-node.rank-main_god .throne-arm,
+.constellation-node.rank-main_god .throne-seat,
+.constellation-node.rank-creator_god .throne-arm,
+.constellation-node.rank-creator_god .throne-seat {
+  opacity: 0.88;
+}
+
+.constellation-node.rank-demigod .throne-halo {
+  border-color: rgba(229, 239, 246, 0.94);
+  box-shadow: inset 0 0 15px rgba(219, 236, 245, 0.72), 0 0 18px rgba(200, 226, 240, 0.68);
+}
+
+.constellation-node.rank-true_god .throne-arm,
+.constellation-node.rank-true_god .throne-seat {
+  border-color: #e7bf55;
+  background: linear-gradient(180deg, #fff1a9, #8d681d);
+}
+
+.constellation-node.rank-true_god .throne-halo {
+  border-color: #efc958;
+  box-shadow: inset 0 0 17px rgba(255, 225, 117, 0.56), 0 0 20px rgba(239, 190, 67, 0.72);
+}
+
+.constellation-node.rank-main_god .throne-arm,
+.constellation-node.rank-main_god .throne-seat {
+  border-color: #edc665;
+  background: linear-gradient(180deg, #e9c5ff, #603880 48%, #9c7125);
+}
+
+.constellation-node.rank-main_god .throne-halo {
+  border-color: #ebcb69;
+  background: radial-gradient(circle, transparent 50%, rgba(154, 91, 202, 0.28) 61%, rgba(239, 199, 91, 0.36) 70%, transparent 73%);
+  box-shadow: inset 0 0 18px rgba(167, 94, 213, 0.55), 0 0 23px rgba(234, 191, 84, 0.64);
+}
+
+.constellation-node.rank-creator_god .throne-arm,
+.constellation-node.rank-creator_god .throne-seat {
+  border-color: #f0d47b;
+  background: linear-gradient(145deg, #ecb8f8, #559fd0, #ffe38a, #70418f);
+  background-size: 220% 220%;
+  animation: throne-seat-prism 5s linear infinite;
+}
+
+.constellation-node.rank-creator_god .throne-halo {
+  opacity: 1;
+  border-color: #f4dc8c;
+  background: conic-gradient(from 0deg, rgba(242, 127, 203, 0.38), rgba(104, 218, 244, 0.4), rgba(255, 222, 111, 0.4), rgba(178, 137, 239, 0.4), rgba(242, 127, 203, 0.38));
+  box-shadow: inset 0 0 22px rgba(107, 215, 245, 0.48), 0 0 25px rgba(225, 119, 210, 0.68);
+  animation: throne-halo-prism 6s linear infinite;
+}
+
+.constellation-node.rank-demigod .throne-rune-arch,
+.constellation-node.rank-true_god .throne-rune-arch,
+.constellation-node.rank-main_god .throne-rune-arch,
+.constellation-node.rank-creator_god .throne-rune-arch {
+  top: -1%;
+  left: 3%;
+  width: 94%;
+  height: 99%;
+  opacity: 0.34;
+  border-bottom-color: transparent;
+  animation: throne-arch-pulse 4s ease-in-out infinite;
+}
+
+.throne-crown {
+  top: -8%;
+}
+
+.constellation-compact .constellation-node {
+  width: 82px;
+}
+
+.constellation-compact .deity-throne {
+  height: 90px;
+}
+
+.constellation-compact .throne-halo {
+  top: 1px;
+  width: 56px;
+  height: 56px;
+}
+
+.constellation-compact .throne-arm {
+  bottom: 14px;
+  height: 21px;
+  border-width: 1px;
+}
+
+.constellation-compact .throne-arm-left {
+  left: 3px;
+}
+
+.constellation-compact .throne-arm-right {
+  right: 3px;
+}
+
+.constellation-compact .throne-seat {
+  right: 17px;
+  bottom: 8px;
+  left: 17px;
+  height: 15px;
+  border-width: 1px;
+}
+
+.constellation-compact .throne-portrait-shell {
+  top: 8px;
+}
+
+.constellation-compact .throne-rune-arch {
+  top: 0;
+  left: 5px;
+  width: 72px;
+  height: 82px;
+  opacity: 0.28;
+}
+
+.constellation-compact .throne-identity {
+  right: -7px;
+  bottom: -2px;
+  left: -7px;
+  flex-direction: column;
+  gap: 1px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 5px var(--deity-glow);
+}
+
+.constellation-compact .throne-identity strong {
+  max-width: 76px;
+  color: #1f3932;
+  font-size: 10px;
+}
+
+.constellation-compact .throne-identity span {
+  min-height: 12px;
+  border-width: 1px;
+  padding: 1px 5px;
+  color: #fffdf2;
+  font-size: 9px;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.56);
+}
+
+.constellation-compact .throne-crown {
+  top: -8px;
+}
+
+.constellation-compact .throne-light-column {
+  top: -3px;
+  width: 54px;
+  height: 76px;
+  filter: blur(3px);
+}
+
+.constellation-compact .constellation-node.rank-main_god .throne-light-column,
+.constellation-compact .constellation-node.rank-creator_god .throne-light-column {
+  opacity: 0.42;
+}
+
+@keyframes throne-halo-breathe {
+  0%, 100% { filter: brightness(0.86); scale: 0.96; }
+  50% { filter: brightness(1.18); scale: 1.04; }
+}
+
+@keyframes throne-halo-prism {
+  from { filter: hue-rotate(0deg) brightness(0.96); transform: translateX(-50%) rotate(0deg); }
+  to { filter: hue-rotate(35deg) brightness(1.12); transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes throne-seat-prism {
+  from { background-position: 0% 50%; }
+  to { background-position: 220% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .throne-halo,
+  .throne-arm,
+  .throne-seat {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* 北斗神阵：全屏仪式与面板缩略图共用同一组星位。 */
+.desktop-runtime.desktop-role-divine,
+.desktop-runtime.desktop-role-divine body,
+.desktop-runtime.desktop-role-divine #root {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
+  background: transparent !important;
+}
+
+.divine-stage {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  min-height: 480px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 16% 22%, rgba(72, 121, 202, 0.25) 0%, rgba(31, 57, 112, 0.12) 22%, transparent 48%),
+    radial-gradient(ellipse at 84% 75%, rgba(132, 73, 181, 0.22) 0%, rgba(73, 40, 110, 0.11) 24%, transparent 51%),
+    radial-gradient(ellipse at 53% 49%, rgba(49, 111, 161, 0.17) 0%, rgba(22, 50, 88, 0.1) 31%, transparent 62%),
+    radial-gradient(circle at 72% 17%, rgba(53, 91, 164, 0.13), transparent 24%),
+    linear-gradient(142deg, rgba(1, 4, 13, 0.82) 0%, rgba(5, 12, 29, 0.77) 39%, rgba(13, 9, 31, 0.75) 72%, rgba(2, 5, 15, 0.81) 100%);
+  color: #f6fbff;
+}
+
+.divine-stage::before,
+.divine-stage::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.divine-stage::before {
+  top: 51%;
+  left: 49%;
+  width: 154vmax;
+  height: 42vmax;
+  background:
+    radial-gradient(ellipse at 29% 44%, rgba(246, 251, 255, 0.21) 0%, rgba(155, 195, 236, 0.13) 14%, transparent 38%),
+    radial-gradient(ellipse at 51% 52%, rgba(255, 249, 238, 0.22) 0%, rgba(167, 201, 235, 0.13) 17%, rgba(111, 96, 177, 0.08) 39%, transparent 67%),
+    radial-gradient(ellipse at 72% 46%, rgba(224, 235, 255, 0.18) 0%, rgba(144, 108, 195, 0.12) 19%, transparent 46%),
+    linear-gradient(180deg, transparent 2%, rgba(104, 139, 192, 0.06) 25%, rgba(222, 236, 255, 0.16) 49%, rgba(132, 99, 181, 0.09) 72%, transparent 98%),
+    linear-gradient(90deg, transparent 2%, rgba(95, 145, 202, 0.09) 21%, rgba(239, 244, 255, 0.18) 48%, rgba(137, 96, 190, 0.11) 76%, transparent 98%);
+  opacity: 0.88;
+  -webkit-mask-image: radial-gradient(
+    ellipse at center,
+    #000 0%,
+    rgba(0, 0, 0, 0.96) 30%,
+    rgba(0, 0, 0, 0.72) 53%,
+    rgba(0, 0, 0, 0.28) 74%,
+    transparent 94%
+  );
+  mask-image: radial-gradient(
+    ellipse at center,
+    #000 0%,
+    rgba(0, 0, 0, 0.96) 30%,
+    rgba(0, 0, 0, 0.72) 53%,
+    rgba(0, 0, 0, 0.28) 74%,
+    transparent 94%
+  );
+  mix-blend-mode: screen;
+  transform: translate(-50%, -50%) rotate(-15deg);
+}
+
+.divine-stage::after {
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 23% 35%, rgba(245, 250, 255, 0.19) 0%, rgba(132, 178, 226, 0.1) 8%, transparent 24%),
+    radial-gradient(ellipse at 36% 43%, rgba(156, 203, 240, 0.12) 0%, transparent 18%),
+    radial-gradient(ellipse at 63% 57%, rgba(255, 244, 239, 0.2) 0%, rgba(185, 138, 222, 0.11) 9%, transparent 27%),
+    radial-gradient(ellipse at 77% 68%, rgba(135, 185, 235, 0.11) 0%, transparent 20%),
+    radial-gradient(circle at 51% 50%, rgba(222, 240, 255, 0.1) 0%, transparent 14%),
+    radial-gradient(circle at 8% 72%, rgba(75, 126, 200, 0.08) 0%, transparent 20%),
+    radial-gradient(circle at 92% 26%, rgba(122, 74, 181, 0.08) 0%, transparent 21%);
+  opacity: 0.82;
+  mix-blend-mode: screen;
+}
+
+.divine-stage-stars {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.divine-stage-stars span {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(237, 248, 255, 0.76);
+  box-shadow: 0 0 7px rgba(185, 222, 255, 0.75);
+  animation: none;
+}
+
+.divine-stage-stars span:nth-child(3n) {
+  animation-name: constellation-star-twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.divine-stage-stars span.is-bright::before,
+.divine-stage-stars span.is-bright::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(239, 247, 255, 0.78), transparent);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.divine-stage-stars span.is-bright::before {
+  width: 18px;
+  height: 1px;
+}
+
+.divine-stage-stars span.is-bright::after {
+  width: 1px;
+  height: 18px;
+  background: linear-gradient(180deg, transparent, rgba(239, 247, 255, 0.72), transparent);
+}
+
+.divine-stage-title {
+  position: absolute;
+  z-index: 35;
+  top: 22px;
+  right: 80px;
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  background:
+    linear-gradient(90deg, transparent, rgba(20, 32, 63, 0.42) 18%, rgba(20, 32, 63, 0.42) 82%, transparent);
+  color: #fff1bd;
+  padding: 0 16px;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 21px;
+  font-weight: 780;
+  line-height: 1;
+  letter-spacing: 0.2em;
+  text-indent: 0.2em;
+  text-shadow: 0 0 9px rgba(255, 224, 134, 0.72), 0 2px 9px rgba(0, 0, 0, 0.62);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.divine-stage-title::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  bottom: 0;
+  left: 4px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 225, 139, 0.72), transparent);
+  box-shadow: 0 0 7px rgba(255, 221, 122, 0.48);
+}
+
+.divine-stage-title span {
+  color: #ffe39a;
+  font-size: 9px;
+  letter-spacing: 0;
+  text-indent: 0;
+  text-shadow: 0 0 8px #ffe6a2;
+}
+
+.divine-stage-close {
+  position: absolute;
+  z-index: 40;
+  top: 15px;
+  right: 26px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: rgba(241, 249, 255, 0.88);
+  padding: 0;
+  font-size: 30px !important;
+  line-height: 1;
+  box-shadow: none;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.48);
+  transition: color 160ms ease, transform 160ms ease;
+}
+
+.divine-stage-close:hover {
+  border-color: transparent;
+  background: transparent;
+  color: #fff4ca;
+  transform: scale(1.08);
+}
+
+.constellation-map {
+  position: relative;
+  z-index: 2;
+}
+
+.constellation-full {
+  width: min(94vw, 1560px);
+  height: min(90vh, 920px);
+  transform: translateY(2.5vh);
+}
+
+.constellation-compact {
+  width: 100%;
+  height: calc(100% - 30px);
+  min-height: 280px;
+}
+
+.constellation-lines {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 5px rgba(154, 216, 242, 0.56));
+}
+
+.constellation-lines polyline {
+  fill: none;
+  stroke: rgba(171, 218, 238, 0.42);
+  stroke-width: 0.28;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1.15 0.85;
+  animation: constellation-line-flow 7s linear infinite;
+}
+
+.constellation-full .constellation-lines {
+  filter: drop-shadow(0 0 5px rgba(178, 211, 255, 0.5));
+}
+
+.constellation-full .constellation-lines polyline {
+  stroke: rgba(205, 224, 247, 0.56);
+  stroke-width: 0.18;
+  stroke-dasharray: none;
+  animation: none;
+}
+
+.constellation-compact .constellation-lines {
+  filter: drop-shadow(0 0 3px rgba(66, 143, 164, 0.3));
+}
+
+.constellation-compact .constellation-lines polyline {
+  stroke: rgba(72, 135, 151, 0.34);
+  stroke-width: 0.34;
+}
+
+.constellation-node {
+  position: absolute;
+  z-index: 2;
+  width: clamp(116px, 10vw, 176px);
+  color: #f6fbff;
+  text-align: center;
+  transform: translate(-50%, -50%);
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+.constellation-full .constellation-node:hover {
+  z-index: 8;
+  filter: brightness(1.14);
+  transform: translate(-50%, -50%) scale(1.06);
+}
+
+.constellation-full .constellation-node {
+  width: clamp(112px, 8vw, 150px);
+}
+
+.constellation-full .deity-throne {
+  height: clamp(132px, 9vw, 164px);
+}
+
+.constellation-full .throne-portrait-shell {
+  width: clamp(64px, 5vw, 90px);
+  height: clamp(64px, 5vw, 90px);
+}
+
+.constellation-compact .constellation-node {
+  width: 76px;
+  color: #29463e;
+}
+
+.deity-throne {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: clamp(132px, 12vw, 190px);
+}
+
+.constellation-compact .deity-throne {
+  height: 78px;
+}
+
+.throne-rune-arch,
+.throne-light-column,
+.throne-crown,
+.throne-base {
+  position: absolute;
+  pointer-events: none;
+}
+
+.throne-rune-arch {
+  z-index: -1;
+  top: -1%;
+  left: 7%;
+  width: 86%;
+  height: 92%;
+  opacity: 0;
+  border: 2px solid var(--deity-accent);
+  border-bottom-color: color-mix(in srgb, var(--deity-accent) 42%, transparent);
+  border-radius: 50% 50% 31% 31% / 42% 42% 20% 20%;
+  color: color-mix(in srgb, var(--deity-accent) 75%, white);
+  font-size: clamp(7px, 0.65vw, 10px);
+  line-height: 1.2;
+  letter-spacing: 0.25em;
+  padding-top: 4px;
+  text-shadow: 0 0 7px var(--deity-glow);
+  box-shadow: inset 0 0 18px var(--deity-glow), 0 0 18px var(--deity-glow);
+}
+
+.throne-light-column {
+  z-index: -3;
+  top: -34%;
+  left: 50%;
+  width: 78%;
+  height: 142%;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--deity-glow), rgba(255, 232, 154, 0.24), transparent);
+  filter: blur(7px);
+  transform: translateX(-50%) perspective(120px) rotateX(-6deg);
+}
+
+.throne-crown {
+  z-index: 6;
+  top: -12%;
+  left: 50%;
+  opacity: 0;
+  color: #f4ce62;
+  font-size: clamp(25px, 2.6vw, 42px);
+  filter: drop-shadow(0 2px 7px rgba(244, 190, 71, 0.55));
+  transform: translateX(-50%);
+}
+
+.throne-base {
+  z-index: 1;
+  right: 11%;
+  bottom: 2%;
+  left: 11%;
+  height: 13%;
+  opacity: 0;
+  border-radius: 50%;
+  background: linear-gradient(90deg, transparent, var(--deity-accent), transparent);
+  box-shadow: 0 0 14px var(--deity-glow), 0 6px 0 color-mix(in srgb, var(--deity-deep) 66%, #362f3b);
+  transform: perspective(40px) rotateX(58deg);
+}
+
+.throne-portrait-shell {
+  position: absolute;
+  z-index: 4;
+  top: 16%;
+  left: 50%;
+  width: clamp(64px, 6.3vw, 104px);
+  height: clamp(64px, 6.3vw, 104px);
+  border: 3px solid color-mix(in srgb, var(--deity-accent) 58%, white);
+  border-radius: 50%;
+  background: rgba(247, 251, 252, 0.92);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.14), 0 0 18px var(--deity-glow);
+  transform: translateX(-50%);
+}
+
+.throne-portrait-shell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.throne-identity {
+  position: absolute;
+  z-index: 5;
+  right: 5%;
+  bottom: 12%;
+  left: 5%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 7px;
+  white-space: nowrap;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.62), 0 0 8px var(--deity-glow);
+}
+
+.throne-identity strong {
+  max-width: 68%;
+  overflow: hidden;
+  font-size: clamp(14px, 1.35vw, 21px);
+  text-overflow: ellipsis;
+}
+
+.throne-identity span {
+  color: color-mix(in srgb, var(--deity-accent) 52%, #fff5c9);
+  font-size: clamp(10px, 0.9vw, 14px);
+  font-weight: 800;
+}
+
+.constellation-compact .throne-portrait-shell {
+  top: 8px;
+  width: 42px;
+  height: 42px;
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.62), 0 0 9px var(--deity-glow);
+}
+
+.constellation-compact .throne-identity {
+  right: -8px;
+  bottom: 5px;
+  left: -8px;
+  gap: 3px;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9), 0 0 5px var(--deity-glow);
+}
+
+.constellation-compact .throne-identity strong {
+  max-width: 52px;
+  color: #263f38;
+  font-size: 10px;
+}
+
+.constellation-compact .throne-identity span {
+  font-size: 8px;
+}
+
+.constellation-compact .throne-rune-arch {
+  top: 2px;
+  left: 10px;
+  width: 56px;
+  height: 69px;
+  border-width: 1px;
+  font-size: 5px;
+  padding-top: 2px;
+}
+
+.constellation-compact .throne-crown {
+  top: -5px;
+  font-size: 16px;
+}
+
+.constellation-compact .throne-light-column {
+  filter: blur(3px);
+}
+
+.rank-demigod .throne-base,
+.rank-true_god .throne-base,
+.rank-main_god .throne-base,
+.rank-creator_god .throne-base {
+  opacity: 0.56;
+}
+
+.rank-demigod .throne-rune-arch,
+.rank-true_god .throne-rune-arch,
+.rank-main_god .throne-rune-arch,
+.rank-creator_god .throne-rune-arch {
+  opacity: 0.72;
+  animation: throne-arch-pulse 3.6s ease-in-out infinite;
+}
+
+.rank-true_god .throne-rune-arch {
+  border-color: #e2b84f;
+  color: #ffe89c;
+  box-shadow: inset 0 0 18px rgba(226, 184, 79, 0.25), 0 0 18px rgba(226, 184, 79, 0.42);
+}
+
+.rank-main_god .throne-light-column,
+.rank-creator_god .throne-light-column {
+  opacity: 0.82;
+  animation: throne-column-pulse 2.8s ease-in-out infinite;
+}
+
+.rank-main_god .throne-crown,
+.rank-creator_god .throne-crown {
+  opacity: 1;
+  animation: throne-crown-float 2.4s ease-in-out infinite;
+}
+
+.rank-creator_god .throne-rune-arch {
+  opacity: 0.95;
+  border-color: #d9a3ec;
+  box-shadow: inset 0 0 20px rgba(91, 220, 244, 0.32), 0 0 23px rgba(231, 126, 214, 0.5);
+}
+
+.constellation-compact .constellation-node.is-today-deity::after {
+  content: "✦";
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 24px);
+  border: 0;
+  background: none;
+  color: var(--deity-accent);
+  padding: 0;
+  font-size: 12px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.throne-action-dock {
+  position: absolute;
+  z-index: 12;
+  bottom: -25px;
+  left: 50%;
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.throne-progress {
+  position: relative;
+  width: clamp(38px, 3.4vw, 56px);
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(181, 207, 228, 0.2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.42);
+}
+
+.throne-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--deity-accent) 74%, #bdeaff), #fff0ac);
+  box-shadow: 0 0 7px var(--deity-glow);
+}
+
+.throne-worship-button {
+  display: inline-flex;
+  width: auto;
+  height: 28px;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 54%, rgba(223, 238, 255, 0.58));
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent),
+    color-mix(in srgb, var(--deity-deep) 76%, rgba(4, 11, 24, 0.92));
+  color: rgba(242, 248, 255, 0.94);
+  padding: 0 11px;
+  font-family: "Microsoft YaHei", sans-serif;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.12),
+    0 5px 14px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(8px);
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.throne-worship-button > span {
+  color: color-mix(in srgb, var(--deity-accent) 76%, #fff0a8);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.throne-worship-button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--deity-accent) 78%, white);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent),
+    color-mix(in srgb, var(--deity-deep) 64%, rgba(9, 20, 38, 0.94));
+  transform: translateY(-2px);
+}
+
+.throne-worship-button:disabled {
+  cursor: default;
+  opacity: 0.42;
+  filter: saturate(0.58);
+}
+
+.constellation-node.is-today-deity .throne-worship-button {
+  border-color: color-mix(in srgb, var(--deity-accent) 48%, rgba(221, 235, 247, 0.48));
+  opacity: 0.72;
+}
+
+.divine-compact-panel {
+  background:
+    radial-gradient(circle at 52% 44%, rgba(83, 151, 166, 0.1), transparent 52%),
+    linear-gradient(180deg, #fffdf8, #f6fbf9);
+}
+
+.divine-compact-panel .divine-panel-content {
+  overflow: hidden;
+}
+
+.divine-stage-error,
+.divine-stage-loading {
+  position: absolute;
+  z-index: 25;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.divine-stage-error {
+  top: 26px;
+  border: 1px solid rgba(246, 158, 139, 0.5);
+  border-radius: 999px;
+  background: rgba(83, 25, 25, 0.72);
+  color: #ffe3dc;
+  padding: 7px 14px;
+  font-size: 12px;
+}
+
+.divine-stage-loading {
+  top: 50%;
+  color: rgba(232, 245, 252, 0.86);
+  letter-spacing: 0.22em;
+}
+
+.divine-stage > .divine-blessing-overlay {
+  position: absolute;
+  z-index: 50;
+  inset: 0;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--deity-soft) 20%, rgba(4, 9, 18, 0.66));
+  backdrop-filter: blur(10px) saturate(1.18);
+}
+
+.divine-stage > .divine-blessing-overlay .divine-blessing-card {
+  width: min(88vw, 560px);
+}
+
+@keyframes constellation-star-twinkle {
+  0%, 100% { transform: scale(0.72); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes constellation-line-flow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -14; }
+}
+
+@keyframes throne-breathe {
+  0%, 100% { filter: drop-shadow(0 0 2px var(--deity-glow)); }
+  50% { filter: drop-shadow(0 0 12px var(--deity-glow)); }
+}
+
+@keyframes throne-arch-pulse {
+  0%, 100% { filter: brightness(0.82); transform: scale(0.98); }
+  50% { filter: brightness(1.18); transform: scale(1.02); }
+}
+
+@keyframes throne-column-pulse {
+  0%, 100% { opacity: 0.42; scale: 0.88 1; }
+  50% { opacity: 0.92; scale: 1.1 1; }
+}
+
+@keyframes throne-crown-float {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-2deg); }
+  50% { transform: translateX(-50%) translateY(-5px) rotate(2deg); }
+}
+
+@media (max-width: 900px), (max-height: 620px) {
+  .constellation-full {
+    width: 96vw;
+    height: 88vh;
+  }
+
+  .constellation-full .constellation-node {
+    width: 104px;
+  }
+
+  .constellation-full .deity-throne {
+    height: 118px;
+  }
+
+  .constellation-full .throne-portrait-shell {
+    width: 58px;
+    height: 58px;
+  }
+
+  .throne-action-dock {
+    bottom: -23px;
+    gap: 6px;
+  }
+
+  .throne-worship-button {
+    height: 25px;
+    padding: 0 8px;
+    font-size: 10px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .divine-stage-stars span,
+  .constellation-lines polyline,
+  .deity-throne,
+  .throne-rune-arch,
+  .throne-light-column,
+  .throne-crown {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* 神选：七座神位共用等阶结构，每位神保留独立色彩与符号。 */
+.divine-panel {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 228, 166, 0.2), transparent 36%),
+    linear-gradient(180deg, #fffdf8 0%, #f8fbf9 100%);
+}
+
+.divine-panel-content {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 3px 5px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(83, 117, 105, 0.2) transparent;
+  transition: filter 180ms ease, opacity 180ms ease;
+}
+
+.divine-head {
+  position: sticky;
+  z-index: 8;
+  top: 0;
+  margin: 0 0 7px;
+  padding: 3px 2px 7px;
+  background: linear-gradient(180deg, #fffdf8 72%, rgba(255, 253, 248, 0));
+}
+
+.divine-head h2 {
+  margin: 0;
+  color: #293d38;
+  font-size: 16px;
+}
+
+.divine-error {
+  margin: 0 2px 7px;
+  border: 1px solid #f1c3b9;
+  border-radius: 9px;
+  background: #fff4f0;
+  color: #9a4937;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.divine-loading {
+  display: grid;
+  min-height: 250px;
+  place-items: center;
+  color: #71857f;
+  font-size: 13px;
+}
+
+.divine-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.divine-card,
+.divine-blessing-overlay {
+  --deity-accent: #7d938d;
+  --deity-deep: #485d57;
+  --deity-soft: #edf2f0;
+  --deity-glow: rgba(125, 147, 141, 0.26);
+}
+
+.deity-hu {
+  --deity-accent: #2eb6c5;
+  --deity-deep: #167286;
+  --deity-soft: #e2fafd;
+  --deity-glow: rgba(46, 182, 197, 0.34);
+}
+
+.deity-chui {
+  --deity-accent: #7689d5;
+  --deity-deep: #4a58a2;
+  --deity-soft: #edf0ff;
+  --deity-glow: rgba(118, 137, 213, 0.34);
+}
+
+.deity-a {
+  --deity-accent: #e19842;
+  --deity-deep: #9e5f24;
+  --deity-soft: #fff3da;
+  --deity-glow: rgba(225, 152, 66, 0.34);
+}
+
+.deity-mx {
+  --deity-accent: #438dde;
+  --deity-deep: #245a9a;
+  --deity-soft: #e5f3ff;
+  --deity-glow: rgba(67, 141, 222, 0.34);
+}
+
+.deity-guo {
+  --deity-accent: #d35ca7;
+  --deity-deep: #8c326e;
+  --deity-soft: #ffe8f6;
+  --deity-glow: rgba(211, 92, 167, 0.34);
+}
+
+.deity-chili {
+  --deity-accent: #ec5f49;
+  --deity-deep: #a52f27;
+  --deity-soft: #ffebe4;
+  --deity-glow: rgba(236, 95, 73, 0.36);
+}
+
+.deity-daimeng-hf {
+  --deity-accent: #b06dc7;
+  --deity-deep: #6d3e83;
+  --deity-soft: #f8eaff;
+  --deity-glow: rgba(176, 109, 199, 0.34);
+}
+
+.divine-card {
+  position: relative;
+  isolation: isolate;
+  flex: 0 1 calc(25% - 6px);
+  min-width: 116px;
+  max-width: 148px;
+  min-height: 132px;
+  overflow: hidden;
+  border: 1px solid #d9e0dd;
+  border-radius: 14px 14px 11px 11px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), #f4f6f5);
+  box-shadow: 0 4px 10px rgba(45, 64, 58, 0.06);
+  padding: 6px 7px;
+  text-align: center;
+}
+
+.divine-card::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  opacity: 0;
+  background:
+    radial-gradient(circle at 50% 16%, var(--deity-glow), transparent 46%),
+    linear-gradient(150deg, rgba(255,255,255,0.96), var(--deity-soft));
+}
+
+.divine-card::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  right: 17%;
+  bottom: 43px;
+  left: 17%;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+  background: var(--deity-accent);
+  box-shadow: 0 0 12px var(--deity-glow), 0 5px 0 color-mix(in srgb, var(--deity-deep) 68%, #5d4934);
+  transform: perspective(30px) rotateX(62deg);
+}
+
+.divine-aura {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.divine-light-column {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  width: 66px;
+  height: 126px;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, var(--deity-glow), rgba(255, 231, 145, 0.3), transparent);
+  filter: blur(3px);
+  transform: translateX(-50%) perspective(90px) rotateX(-7deg);
+}
+
+.divine-rune-ring {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 78px;
+  height: 78px;
+  border: 1px dashed var(--deity-accent);
+  border-radius: 50%;
+  opacity: 0;
+  color: var(--deity-deep);
+  font-size: 8px;
+  line-height: 78px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.divine-crown {
+  position: absolute;
+  z-index: 2;
+  top: -3px;
+  left: 50%;
+  opacity: 0;
+  color: #f1c95c;
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(126, 74, 20, 0.36));
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.divine-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  opacity: 0;
+  background: var(--deity-accent);
+  box-shadow: 0 0 5px var(--deity-glow);
+}
+
+.divine-particle.particle-1 { left: 13%; top: 68%; animation-delay: -0.3s; }
+.divine-particle.particle-2 { left: 25%; top: 32%; animation-delay: -1.4s; }
+.divine-particle.particle-3 { left: 39%; top: 79%; animation-delay: -2.1s; }
+.divine-particle.particle-4 { left: 56%; top: 24%; animation-delay: -0.8s; }
+.divine-particle.particle-5 { left: 69%; top: 71%; animation-delay: -1.8s; }
+.divine-particle.particle-6 { left: 84%; top: 42%; animation-delay: -2.6s; }
+.divine-particle.particle-7 { left: 91%; top: 82%; animation-delay: -1.1s; }
+
+.deity-chili .divine-particle { border-radius: 60% 10% 60% 10%; transform: rotate(35deg); }
+.deity-chui .divine-particle { border-radius: 0; transform: rotate(45deg); }
+.deity-a .divine-particle { box-shadow: 0 0 0 2px rgba(255, 208, 91, 0.18), 0 0 6px var(--deity-glow); }
+.deity-mx .divine-particle { width: 3px; height: 7px; border-radius: 999px; }
+.deity-guo .divine-particle { clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); }
+.deity-daimeng-hf .divine-particle { width: 5px; height: 3px; border-radius: 50% 50% 35% 35%; }
+
+.divine-portrait-shell {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 4px;
+  border: 2px solid #d4dcda;
+  border-radius: 50%;
+  background: #edf1ef;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.82);
+}
+
+.divine-portrait {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.divine-card-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.divine-card-title strong {
+  overflow: hidden;
+  color: #263b35;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.divine-card-title span {
+  flex: none;
+  color: var(--deity-deep);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.divine-progress {
+  height: 4px;
+  margin: 4px 1px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(74, 93, 87, 0.12);
+}
+
+.divine-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--deity-accent), color-mix(in srgb, var(--deity-accent) 45%, #ffe477));
+  box-shadow: 0 0 5px var(--deity-glow);
+  transition: width 380ms ease;
+}
+
+.divine-worship-button {
+  width: 100%;
+  min-height: 25px;
+  margin-top: 7px;
+  border-radius: 8px;
+  background: var(--deity-deep);
+  padding: 4px 6px;
+  font-size: 11px !important;
+  box-shadow: 0 3px 7px var(--deity-glow);
+}
+
+.divine-worship-button:hover:not(:disabled) {
+  background: var(--deity-accent);
+  transform: translateY(-1px);
+}
+
+.divine-card.is-selected {
+  outline: 2px solid color-mix(in srgb, var(--deity-accent) 65%, white);
+  outline-offset: -3px;
+}
+
+.divine-card.rank-demigod,
+.divine-card.rank-true_god,
+.divine-card.rank-main_god,
+.divine-card.rank-creator_god {
+  border-color: color-mix(in srgb, var(--deity-accent) 48%, #dbe1de);
+  box-shadow: 0 5px 14px var(--deity-glow);
+}
+
+.divine-card.rank-demigod::before,
+.divine-card.rank-true_god::before,
+.divine-card.rank-main_god::before,
+.divine-card.rank-creator_god::before {
+  opacity: 1;
+}
+
+.divine-card.rank-demigod .divine-rune-ring,
+.divine-card.rank-true_god .divine-rune-ring,
+.divine-card.rank-main_god .divine-rune-ring,
+.divine-card.rank-creator_god .divine-rune-ring {
+  opacity: 0.62;
+  border-style: solid;
+  box-shadow: inset 0 0 9px rgba(238, 244, 255, 0.75), 0 0 10px var(--deity-glow);
+  animation: deity-orbit 10s linear infinite;
+}
+
+.divine-card.rank-demigod .divine-particle,
+.divine-card.rank-true_god .divine-particle,
+.divine-card.rank-main_god .divine-particle,
+.divine-card.rank-creator_god .divine-particle {
+  opacity: 0.55;
+  animation: deity-rise 3.2s ease-in infinite;
+}
+
+.divine-card.rank-true_god,
+.divine-card.rank-main_god,
+.divine-card.rank-creator_god {
+  border-color: color-mix(in srgb, #d7ac4c 58%, var(--deity-accent));
+}
+
+.divine-card.rank-true_god::after,
+.divine-card.rank-main_god::after,
+.divine-card.rank-creator_god::after {
+  opacity: 0.5;
+}
+
+.divine-card.rank-true_god .divine-rune-ring {
+  color: #b5821e;
+  border-color: #d4a438;
+}
+
+.divine-card.rank-main_god .divine-light-column,
+.divine-card.rank-creator_god .divine-light-column {
+  opacity: 0.78;
+  animation: deity-column 2.8s ease-in-out infinite;
+}
+
+.divine-card.rank-main_god .divine-crown,
+.divine-card.rank-creator_god .divine-crown {
+  opacity: 1;
+  transform: translateX(-50%);
+  animation: deity-crown 2.2s ease-in-out infinite;
+}
+
+.divine-card.rank-main_god {
+  background: linear-gradient(155deg, #fffaf2, color-mix(in srgb, var(--deity-soft) 76%, #f3e5ff));
+  box-shadow: 0 5px 18px var(--deity-glow), inset 0 0 12px rgba(131, 76, 180, 0.12);
+}
+
+.divine-card.rank-creator_god {
+  border-color: transparent;
+  background:
+    linear-gradient(#fffdf9, #fffdf9) padding-box,
+    linear-gradient(120deg, #f29cc3, #8bd6f2, #f4d66f, #b59af0, #f29cc3) border-box;
+  background-size: 100% 100%, 280% 280%;
+  box-shadow: 0 6px 21px var(--deity-glow), 0 0 16px rgba(154, 115, 231, 0.2);
+  animation: deity-nebula 5s linear infinite;
+}
+
+.divine-card.rank-creator_god::before {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(106, 222, 255, 0.25), transparent 27%),
+    radial-gradient(circle at 82% 28%, rgba(241, 122, 207, 0.2), transparent 30%),
+    radial-gradient(circle at 50% 72%, rgba(255, 218, 99, 0.18), transparent 34%);
+}
+
+.divine-card.rank-creator_god .divine-rune-ring {
+  opacity: 0.9;
+  border-color: #c998e9;
+  box-shadow: inset 0 0 10px rgba(98, 217, 247, 0.35), 0 0 12px rgba(231, 121, 210, 0.38);
+  animation-duration: 5.5s;
+}
+
+.divine-card.rank-creator_god .divine-particle {
+  opacity: 0.88;
+  background: #fff5a5;
+  box-shadow: 0 0 5px #8be3ff, 0 0 9px rgba(226, 116, 218, 0.6);
+}
+
+.divine-panel.is-blessing-open .divine-panel-content {
+  filter: blur(7px) saturate(0.72);
+  opacity: 0.58;
+  pointer-events: none;
+  user-select: none;
+}
+
+.divine-blessing-overlay {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  overflow: hidden;
+  place-items: center;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--deity-accent) 22%, transparent), transparent 42%),
+    linear-gradient(145deg, rgba(4, 10, 24, 0.7), rgba(12, 17, 36, 0.62));
+  backdrop-filter: blur(12px) saturate(1.22);
+  animation: blessing-overlay-in 220ms ease-out both;
+}
+
+.divine-blessing-card {
+  position: relative;
+  z-index: 2;
+  isolation: isolate;
+  box-sizing: border-box;
+  width: min(90%, 520px);
+  min-height: 490px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 58%, #fff0b8);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 50% -6%, color-mix(in srgb, var(--deity-accent) 25%, transparent), transparent 44%),
+    radial-gradient(circle at 12% 88%, var(--deity-glow), transparent 31%),
+    radial-gradient(circle at 88% 84%, var(--deity-glow), transparent 29%),
+    linear-gradient(155deg, rgba(255, 255, 249, 0.98), color-mix(in srgb, var(--deity-soft) 42%, #f7f3e9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    inset 0 0 42px color-mix(in srgb, var(--deity-glow) 42%, transparent),
+    0 28px 70px rgba(3, 8, 22, 0.46),
+    0 0 42px var(--deity-glow),
+    0 0 12px color-mix(in srgb, var(--deity-accent) 32%, transparent);
+  padding: 34px 46px 38px;
+  text-align: center;
+  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  animation: blessing-card-in 460ms cubic-bezier(0.2, 0.8, 0.2, 1.15) both;
+}
+
+.divine-blessing-card::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 10px;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 28%, rgba(177, 135, 54, 0.48));
+  border-radius: 22px;
+  clip-path: polygon(0 18px, 18px 0, calc(100% - 18px) 0, 100% 18px, 100% calc(100% - 18px), calc(100% - 18px) 100%, 18px 100%, 0 calc(100% - 18px));
+  pointer-events: none;
+}
+
+.divine-blessing-card::after {
+  content: "✦　·　✧　·　✦";
+  position: absolute;
+  z-index: 0;
+  bottom: 13px;
+  left: 50%;
+  width: max-content;
+  transform: translateX(-50%);
+  color: color-mix(in srgb, var(--deity-accent) 48%, #b18b43);
+  font-family: Georgia, serif;
+  font-size: 10px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.divine-blessing-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.divine-blessing-overlay.is-promotion .divine-blessing-card {
+  border-color: #f3ce68;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 46px color-mix(in srgb, var(--deity-glow) 50%, transparent),
+    0 30px 76px rgba(3, 8, 22, 0.48),
+    0 0 50px var(--deity-glow),
+    0 0 28px rgba(255, 212, 94, 0.5);
+  animation: blessing-promotion-in 720ms cubic-bezier(0.2, 0.82, 0.2, 1.08) both;
+}
+
+.divine-promotion-badge {
+  position: absolute;
+  top: 23px;
+  right: 26px;
+  display: inline-flex;
+  border: 1px solid #e9c254;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fff4c7, #f7d875, #fff4c7);
+  color: #785414;
+  padding: 5px 12px;
+  font-family: system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.blessing-portrait-shell {
+  position: relative;
+  width: 116px;
+  height: 116px;
+  margin: 8px auto 21px;
+  border: 3px solid color-mix(in srgb, var(--deity-accent) 58%, #fff5c8);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 6px rgba(255, 255, 255, 0.68),
+    0 0 0 8px color-mix(in srgb, var(--deity-accent) 26%, transparent),
+    0 0 30px var(--deity-glow);
+}
+
+.blessing-portrait-shell::before,
+.blessing-portrait-shell::after {
+  content: "";
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.blessing-portrait-shell::before {
+  inset: -16px;
+  border: 1px dashed color-mix(in srgb, var(--deity-accent) 58%, #d8b35d);
+  animation: blessing-sigil-orbit 12s linear infinite;
+}
+
+.blessing-portrait-shell::after {
+  inset: -10px;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 30%, transparent);
+  box-shadow: inset 0 0 12px var(--deity-glow), 0 0 14px var(--deity-glow);
+}
+
+.blessing-portrait-shell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.blessing-portrait-shell span {
+  position: absolute;
+  right: -10px;
+  bottom: -4px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(174, 126, 36, 0.38);
+  background: radial-gradient(circle, #fff9cf, #f2d16f);
+  color: #9b6716;
+  box-shadow: 0 3px 9px rgba(93, 61, 12, 0.25);
+}
+
+.blessing-source {
+  margin: 0 0 7px;
+  color: color-mix(in srgb, var(--deity-deep) 76%, #766334);
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.2em;
+}
+
+.divine-blessing-card h2 {
+  margin: 0;
+  color: color-mix(in srgb, var(--deity-deep) 86%, #5c4519);
+  font-size: clamp(31px, 3.2vw, 42px);
+  font-weight: 760;
+  line-height: 1.18;
+  letter-spacing: 0.12em;
+  text-indent: 0.12em;
+  text-shadow: 0 2px 0 rgba(255, 255, 255, 0.76), 0 0 17px var(--deity-glow);
+}
+
+.blessing-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(82%, 330px);
+  margin: 14px auto 13px;
+  color: color-mix(in srgb, var(--deity-accent) 54%, #b28a3b);
+  font-size: 11px;
+}
+
+.blessing-divider::before,
+.blessing-divider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, transparent, currentColor);
+}
+
+.blessing-divider::after {
+  background: linear-gradient(90deg, currentColor, transparent);
+}
+
+.blessing-decree {
+  display: flex;
+  height: 78px;
+  margin: 0 auto 27px;
+  align-items: center;
+  justify-content: center;
+  color: #293b38;
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 0.045em;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.blessing-decree--medium {
+  font-size: 21px;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+
+.blessing-decree--long {
+  font-size: 18px;
+  line-height: 1.55;
+  letter-spacing: 0.025em;
+}
+
+.divine-blessing-card button {
+  display: inline-flex;
+  min-width: 168px;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  border: 1px solid color-mix(in srgb, var(--deity-accent) 42%, #e6c86f);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), transparent 52%),
+    linear-gradient(110deg, var(--deity-deep), color-mix(in srgb, var(--deity-deep) 72%, #49395f));
+  color: #fff9dc;
+  padding: 11px 24px;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 760;
+  letter-spacing: 0.16em;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 7px 18px color-mix(in srgb, var(--deity-glow) 72%, rgba(8, 13, 26, 0.22)),
+    0 0 15px var(--deity-glow);
+}
+
+.divine-blessing-card button:hover {
+  border-color: #f3d889;
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.divine-blessing-card button span {
+  color: #ffe49a;
+  font-size: 10px;
+  text-shadow: 0 0 7px #ffe7a4;
+}
+
+.blessing-burst,
+.blessing-particle {
+  position: absolute;
+  pointer-events: none;
+}
+
+.blessing-burst {
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+}
+
+.blessing-particle {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0;
+  background: var(--deity-accent);
+  box-shadow: 0 0 8px var(--deity-glow);
+  animation: blessing-particle-burst 1.5s ease-out infinite;
+}
+
+.is-promotion .blessing-particle {
+  width: 10px;
+  height: 10px;
+  background: #f7d158;
+  box-shadow: 0 0 8px #fff1aa, 0 0 14px var(--deity-glow);
+  animation-duration: 1.8s;
+}
+
+.blessing-particle-1 { --burst-x: -190px; --burst-y: -120px; animation-delay: -0.1s; }
+.blessing-particle-2 { --burst-x: -90px; --burst-y: -175px; animation-delay: -0.8s; }
+.blessing-particle-3 { --burst-x: 28px; --burst-y: -185px; animation-delay: -1.2s; }
+.blessing-particle-4 { --burst-x: 155px; --burst-y: -125px; animation-delay: -0.4s; }
+.blessing-particle-5 { --burst-x: 202px; --burst-y: -12px; animation-delay: -1.1s; }
+.blessing-particle-6 { --burst-x: 154px; --burst-y: 130px; animation-delay: -0.6s; }
+.blessing-particle-7 { --burst-x: 22px; --burst-y: 178px; animation-delay: -1.4s; }
+.blessing-particle-8 { --burst-x: -116px; --burst-y: 148px; animation-delay: -0.3s; }
+.blessing-particle-9 { --burst-x: -204px; --burst-y: 26px; animation-delay: -1s; }
+
+@keyframes blessing-sigil-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes deity-breathe {
+  0%, 100% { box-shadow: 0 4px 11px rgba(45, 64, 58, 0.06); }
+  50% { box-shadow: 0 5px 18px var(--deity-glow), 0 0 8px var(--deity-glow); }
+}
+
+@keyframes deity-orbit {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to { transform: translateX(-50%) rotate(360deg); }
+}
+
+@keyframes deity-rise {
+  0% { opacity: 0; translate: 0 18px; scale: 0.6; }
+  38% { opacity: 0.65; }
+  100% { opacity: 0; translate: 0 -38px; scale: 1.1; }
+}
+
+@keyframes deity-column {
+  0%, 100% { opacity: 0.45; scale: 0.88 1; }
+  50% { opacity: 0.92; scale: 1.08 1; }
+}
+
+@keyframes deity-crown {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-2deg); }
+  50% { transform: translateX(-50%) translateY(-2px) rotate(2deg); }
+}
+
+@keyframes deity-nebula {
+  0% { background-position: 0 0, 0% 50%; }
+  100% { background-position: 0 0, 280% 50%; }
+}
+
+@keyframes blessing-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes blessing-card-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.88); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes blessing-promotion-in {
+  0% { opacity: 0; transform: scale(0.72) rotate(-2deg); }
+  52% { opacity: 1; transform: scale(1.08) rotate(1deg); }
+  74% { transform: scale(0.97) rotate(0); }
+  100% { transform: scale(1); }
+}
+
+@keyframes blessing-particle-burst {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.25) rotate(0); }
+  18% { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--burst-x), var(--burst-y)) scale(1.15) rotate(240deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .divine-card,
+  .divine-card::before,
+  .divine-rune-ring,
+  .divine-light-column,
+  .divine-crown,
+  .divine-particle,
+  .divine-progress span,
+  .divine-blessing-overlay,
+  .divine-blessing-card,
+  .blessing-portrait-shell::before,
+  .blessing-particle {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .divine-particle,
+  .blessing-particle {
+    display: none;
+  }
 }
 
 .status-list,

@@ -1,13 +1,23 @@
-import { PointerEvent, useEffect, useRef } from "react";
+import { PointerEvent, useEffect, useReducer, useRef } from "react";
 import type { MoodEmoji } from "@xiaoelong/shared";
 import mascotHitMaskImage from "../assets/xiaoelong-mascot-hitmask.png";
 import mascotImage from "../assets/xiaoelong-mascot.png";
-
-const MASCOT_HIT_ALPHA_THRESHOLD = 32;
+import {
+  INITIAL_PET_ANIMATION_STATE,
+  isPetDragThresholdExceeded,
+  petAnimationReducer,
+  resolvePetDragDirection,
+  type PetDisplayMode,
+  type PetDragDirection,
+  type PetReaction
+} from "../pet-animation";
+import { PetSprite, type PetSpriteHandle } from "./PetSprite";
 
 interface AvatarDockProps {
   open: boolean;
   nickname: string;
+  displayMode: PetDisplayMode;
+  reaction?: PetReaction | null;
   moodPrompt?: {
     options: MoodEmoji[];
     selectedMood: MoodEmoji | null;
@@ -20,18 +30,34 @@ interface AvatarDockProps {
 
 export function AvatarDock(props: AvatarDockProps): JSX.Element {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-  const imageRef = useRef<HTMLImageElement | null>(null);
+  const spriteRef = useRef<PetSpriteHandle | null>(null);
   const moodPromptRef = useRef<HTMLDivElement | null>(null);
-  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const maskContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const clickThroughRef = useRef(false);
+  const displayModeRef = useRef(props.displayMode);
   const lastMousePointRef = useRef({ x: 0, y: 0, hasPoint: false });
+  const [petAnimation, dispatchPetAnimation] = useReducer(petAnimationReducer, INITIAL_PET_ANIMATION_STATE);
   const dragRef = useRef({
     pointerId: -1,
     startX: 0,
     startY: 0,
+    lastScreenX: 0,
+    lastDirection: null as PetDragDirection | null,
     dragging: false
   });
+
+  displayModeRef.current = props.displayMode;
+
+  useEffect(() => {
+    if (props.displayMode === "image") {
+      dispatchPetAnimation({ type: "reset-visuals" });
+    }
+  }, [props.displayMode]);
+
+  useEffect(() => {
+    if (props.reaction && displayModeRef.current !== "image") {
+      dispatchPetAnimation({ type: "reaction-received", reaction: props.reaction });
+    }
+  }, [props.reaction]);
 
   function setAvatarClickThrough(enabled: boolean): void {
     if (clickThroughRef.current === enabled) {
@@ -53,6 +79,8 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
       pointerId: -1,
       startX: 0,
       startY: 0,
+      lastScreenX: 0,
+      lastDirection: null,
       dragging: false
     };
 
@@ -61,6 +89,9 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
       button.releasePointerCapture(activePointerId);
     }
     window.xiaoelongDesktop?.endDrag?.();
+    if (wasDragging && displayModeRef.current !== "image") {
+      dispatchPetAnimation({ type: "drag-end" });
+    }
     return wasDragging;
   }
 
@@ -68,49 +99,12 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
     return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
   }
 
-  function getMaskPoint(clientX: number, clientY: number): { x: number; y: number } | null {
-    const image = imageRef.current;
-    const maskCanvas = maskCanvasRef.current;
-    if (!image || !maskCanvas) {
-      return null;
-    }
-
-    const rect = image.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0 || maskCanvas.width <= 0 || maskCanvas.height <= 0) {
-      return null;
-    }
-
-    const scale = Math.min(rect.width / maskCanvas.width, rect.height / maskCanvas.height);
-    const renderedWidth = maskCanvas.width * scale;
-    const renderedHeight = maskCanvas.height * scale;
-    const renderedLeft = rect.left + (rect.width - renderedWidth) / 2;
-    const renderedTop = rect.top + (rect.height - renderedHeight) / 2;
-    const renderedRight = renderedLeft + renderedWidth;
-    const renderedBottom = renderedTop + renderedHeight;
-
-    if (clientX < renderedLeft || clientX > renderedRight || clientY < renderedTop || clientY > renderedBottom) {
-      return null;
-    }
-
-    return {
-      x: Math.min(maskCanvas.width - 1, Math.max(0, Math.floor(((clientX - renderedLeft) / renderedWidth) * maskCanvas.width))),
-      y: Math.min(maskCanvas.height - 1, Math.max(0, Math.floor(((clientY - renderedTop) / renderedHeight) * maskCanvas.height)))
-    };
-  }
-
   function isPointOnMascot(clientX: number, clientY: number): boolean {
     const button = buttonRef.current;
     if (!button || !isPointInRect(clientX, clientY, button.getBoundingClientRect())) {
       return false;
     }
-
-    const maskPoint = getMaskPoint(clientX, clientY);
-    const maskContext = maskContextRef.current;
-    if (!maskPoint || !maskContext) {
-      return true;
-    }
-
-    return maskContext.getImageData(maskPoint.x, maskPoint.y, 1, 1).data[3] > MASCOT_HIT_ALPHA_THRESHOLD;
+    return spriteRef.current?.isOpaqueAt(clientX, clientY) ?? true;
   }
 
   function isPointInMoodPrompt(clientX: number, clientY: number): boolean {
@@ -130,40 +124,6 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
     }
     setAvatarClickThrough(!isInteractivePoint(clientX, clientY));
   }
-
-  useEffect(() => {
-    let cancelled = false;
-    const maskImage = new Image();
-    maskImage.src = mascotHitMaskImage;
-
-    maskImage.onload = () => {
-      if (cancelled) {
-        return;
-      }
-
-      const canvas = document.createElement("canvas");
-      canvas.width = maskImage.naturalWidth;
-      canvas.height = maskImage.naturalHeight;
-      const context = canvas.getContext("2d", { willReadFrequently: true });
-      if (!context) {
-        return;
-      }
-
-      context.drawImage(maskImage, 0, 0);
-      maskCanvasRef.current = canvas;
-      maskContextRef.current = context;
-
-      if (lastMousePointRef.current.hasPoint) {
-        updateClickThroughForPoint(lastMousePointRef.current.x, lastMousePointRef.current.y);
-      }
-    };
-
-    return () => {
-      cancelled = true;
-      maskCanvasRef.current = null;
-      maskContextRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     function handleMouseMove(event: MouseEvent): void {
@@ -230,6 +190,8 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
       pointerId: event.pointerId,
       startX: event.screenX,
       startY: event.screenY,
+      lastScreenX: event.screenX,
+      lastDirection: null,
       dragging: false
     };
 
@@ -250,11 +212,28 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
 
     const deltaX = event.screenX - dragRef.current.startX;
     const deltaY = event.screenY - dragRef.current.startY;
-    if (!dragRef.current.dragging && deltaX * deltaX + deltaY * deltaY > 25) {
+    if (!dragRef.current.dragging && isPetDragThresholdExceeded(deltaX, deltaY)) {
       dragRef.current.dragging = true;
+      if (displayModeRef.current !== "image") {
+        const direction = resolvePetDragDirection(dragRef.current.startX, event.screenX, null);
+        dragRef.current.lastDirection = direction;
+        dispatchPetAnimation({ type: "drag-begin", direction });
+      }
     }
 
     if (dragRef.current.dragging) {
+      if (displayModeRef.current !== "image") {
+        const direction = resolvePetDragDirection(
+          dragRef.current.lastScreenX,
+          event.screenX,
+          dragRef.current.lastDirection
+        );
+        if (direction && direction !== dragRef.current.lastDirection) {
+          dragRef.current.lastDirection = direction;
+          dispatchPetAnimation({ type: "drag-direction", direction });
+        }
+      }
+      dragRef.current.lastScreenX = event.screenX;
       window.xiaoelongDesktop?.moveDrag?.();
     }
   }
@@ -333,7 +312,19 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
           props.onSettings();
         }}
       >
-        <img ref={imageRef} src={mascotImage} alt="" className="avatar-dock-image" draggable={false} />
+        <PetSprite
+          ref={spriteRef}
+          animation={petAnimation.animation}
+          displayMode={props.displayMode}
+          fallbackImageUrl={mascotImage}
+          fallbackMaskUrl={mascotHitMaskImage}
+          onAnimationComplete={() => dispatchPetAnimation({ type: "animation-complete" })}
+          onFrameRendered={() => {
+            if (lastMousePointRef.current.hasPoint && dragRef.current.pointerId === -1) {
+              updateClickThroughForPoint(lastMousePointRef.current.x, lastMousePointRef.current.y);
+            }
+          }}
+        />
       </button>
     </div>
   );
