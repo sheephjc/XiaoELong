@@ -11,6 +11,7 @@ import {
   type DeityId,
   type DeityWorshipResponse,
   type DeityWorshipTodayResponse,
+  type GomokuEndPayload,
   type GomokuGame,
   type GomokuUpdatePayload,
   type MoodEmoji,
@@ -43,10 +44,24 @@ import { GomokuPanel } from "./components/GomokuPanel";
 import { JoinForm } from "./components/JoinForm";
 import { SettingsProfileForm } from "./components/SettingsProfileForm";
 import { StatusBar } from "./components/StatusBar";
+import {
+  getNextPetDisplayMode,
+  getPetReaction,
+  normalizePetDisplayMode,
+  type PetDisplayMode,
+  type PetReaction
+} from "./pet-animation";
 import { connectSocket, type AppSocket } from "./socket";
 import clientPackage from "../package.json";
 
 const TOKEN_STORAGE_KEY = "xiaoelong_access_token";
+const PET_ANIMATIONS_STORAGE_KEY = "xiaoelong_pet_animations_enabled";
+const PET_DISPLAY_MODE_STORAGE_KEY = "xiaoelong_pet_display_mode";
+const PET_DISPLAY_MODE_LABELS: Record<PetDisplayMode, string> = {
+  dynamic: "动态显示：开",
+  static: "动态显示：关",
+  image: "只显示形象"
+};
 const DEFAULT_MOOD_OPTIONS: MoodEmoji[] = [...MOOD_OPTIONS];
 
 function getInitialAccessToken(): string | null {
@@ -60,6 +75,14 @@ function getInitialAccessToken(): string | null {
     localStorage.setItem(TOKEN_STORAGE_KEY, persistedToken);
   }
   return persistedToken;
+}
+
+function getInitialPetDisplayMode(): PetDisplayMode {
+  const legacyValue = localStorage.getItem(PET_ANIMATIONS_STORAGE_KEY);
+  return normalizePetDisplayMode(
+    localStorage.getItem(PET_DISPLAY_MODE_STORAGE_KEY),
+    legacyValue === null ? undefined : legacyValue !== "false"
+  );
 }
 
 interface InitialDivineSession {
@@ -83,9 +106,16 @@ type ModuleTab = "chat" | "daily" | "divine" | "gomoku";
 type DesktopRole = "auth" | "avatar" | "panel" | "divine" | "single";
 type PanelView = "home" | "settings";
 
+interface InitialPanelSession {
+  requestId: number;
+  view: PanelView;
+}
+
 interface DesktopSettingsState {
   openAtLogin: boolean;
   panelAlwaysOnTop: boolean;
+  petDisplayMode: PetDisplayMode;
+  petAnimationsEnabled: boolean;
 }
 
 function getDesktopRole(): DesktopRole {
@@ -97,10 +127,34 @@ function getDesktopRole(): DesktopRole {
   return role === "auth" || role === "avatar" || role === "panel" || role === "divine" ? role : "auth";
 }
 
-function getInitialPanelView(): PanelView {
+function getInitialPanelSession(): InitialPanelSession {
   const view = new URLSearchParams(window.location.search).get("desktopPanelView");
-  return view === "settings" ? "settings" : "home";
+  const fallback: InitialPanelSession = {
+    requestId: 0,
+    view: view === "settings" ? "settings" : "home"
+  };
+  if (window.xiaoelongDesktop?.role !== "panel") {
+    return fallback;
+  }
+  return window.xiaoelongDesktop.getInitialPanelSession?.() ?? fallback;
 }
+
+function scheduleAfterNextPaint(callback: () => void): () => void {
+  let secondFrame: number | null = null;
+  const firstFrame = window.requestAnimationFrame(() => {
+    secondFrame = window.requestAnimationFrame(callback);
+  });
+
+  return () => {
+    window.cancelAnimationFrame(firstFrame);
+    if (secondFrame !== null) {
+      window.cancelAnimationFrame(secondFrame);
+    }
+  };
+}
+
+const INITIAL_PANEL_SESSION = getInitialPanelSession();
+const INITIAL_PET_DISPLAY_MODE = getInitialPetDisplayMode();
 
 function updatePresenceStatus(current: PresenceUser[], onlineUserIds: string[]): PresenceUser[] {
   const onlineSet = new Set(onlineUserIds);
@@ -277,6 +331,8 @@ async function emitWithAck<T>(
 
 export default function App(): JSX.Element {
   const socketRef = useRef<AppSocket | null>(null);
+  const appliedDivineSessionRequestIdRef = useRef(INITIAL_DIVINE_SESSION.requestId);
+  const deityDataVersionRef = useRef(0);
   const pendingGomokuMoveIdsRef = useRef<Set<number>>(new Set());
   const chatScrollMemoryRef = useRef<ChatScrollMemory | null>(null);
   const [token, setToken] = useState<string | null>(getInitialAccessToken);
@@ -288,6 +344,7 @@ export default function App(): JSX.Element {
   const [deityData, setDeityData] = useState<DeityWorshipTodayResponse | null>(INITIAL_DIVINE_SESSION.data);
   const [gomokuGames, setGomokuGames] = useState<GomokuGame[]>([]);
   const [selectedGameId, setSelectedGameId] = useState<number | null>(null);
+  const [petReaction, setPetReaction] = useState<PetReaction | null>(null);
 
   const [booting, setBooting] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
@@ -313,12 +370,15 @@ export default function App(): JSX.Element {
 
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ModuleTab>("chat");
-  const [panelView, setPanelView] = useState<PanelView>(() => getInitialPanelView());
+  const [panelView, setPanelView] = useState<PanelView>(INITIAL_PANEL_SESSION.view);
+  const [panelRevealRequestId, setPanelRevealRequestId] = useState(INITIAL_PANEL_SESSION.requestId);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [desktopSettings, setDesktopSettings] = useState<DesktopSettingsState>({
     openAtLogin: false,
-    panelAlwaysOnTop: true
+    panelAlwaysOnTop: true,
+    petDisplayMode: INITIAL_PET_DISPLAY_MODE,
+    petAnimationsEnabled: INITIAL_PET_DISPLAY_MODE === "dynamic"
   });
   const [updateState, setUpdateState] = useState<XiaoELongUpdateState>({
     status: "idle",
@@ -329,6 +389,21 @@ export default function App(): JSX.Element {
   const desktopRole = getDesktopRole();
   const currentUserId = currentUser?.id ?? null;
   const dailyQuestionId = dailyData?.question.id ?? null;
+
+  const applyDesktopSettings = useCallback((settings: DesktopSettingsState): void => {
+    const petDisplayMode = normalizePetDisplayMode(
+      settings.petDisplayMode,
+      settings.petAnimationsEnabled
+    );
+    const nextSettings = {
+      ...settings,
+      petDisplayMode,
+      petAnimationsEnabled: petDisplayMode === "dynamic"
+    };
+    localStorage.setItem(PET_DISPLAY_MODE_STORAGE_KEY, petDisplayMode);
+    localStorage.setItem(PET_ANIMATIONS_STORAGE_KEY, String(nextSettings.petAnimationsEnabled));
+    setDesktopSettings(nextSettings);
+  }, []);
 
   const handleStatusBarExtraHeight = useCallback((height: number): void => {
     if (desktopRole === "panel") {
@@ -349,6 +424,7 @@ export default function App(): JSX.Element {
     setMessages([]);
     setDailyData(null);
     setMoodStatus(null);
+    deityDataVersionRef.current += 1;
     setDeityData(null);
     setGomokuGames([]);
     setSelectedGameId(null);
@@ -431,6 +507,7 @@ export default function App(): JSX.Element {
       return null;
     }
 
+    const dataVersion = deityDataVersionRef.current;
     const silent = options?.silent ?? false;
     if (!silent) {
       setDeityLoading(true);
@@ -438,11 +515,14 @@ export default function App(): JSX.Element {
     }
     try {
       const today = await getTodayDeityWorship(token);
+      if (dataVersion !== deityDataVersionRef.current) {
+        return null;
+      }
       setDeityData(today);
       setDeityError(null);
       return today;
     } catch (error) {
-      if (!silent) {
+      if (!silent && dataVersion === deityDataVersionRef.current) {
         setDeityError(error instanceof Error ? error.message : "加载神选状态失败。");
       }
       return null;
@@ -459,6 +539,14 @@ export default function App(): JSX.Element {
     }
 
     return window.xiaoelongDesktop?.onDivineData?.((session) => {
+      if (
+        session.requestId <= 0 ||
+        session.requestId === appliedDivineSessionRequestIdRef.current
+      ) {
+        return;
+      }
+      appliedDivineSessionRequestIdRef.current = session.requestId;
+      deityDataVersionRef.current += 1;
       setDeityData(session.data);
       setDeityError(null);
       setDeityLoading(false);
@@ -467,6 +555,12 @@ export default function App(): JSX.Element {
       setDivineRevealRequestId(session.requestId);
     });
   }, [desktopRole]);
+
+  useEffect(() => {
+    if (desktopRole === "divine" && deityData) {
+      window.xiaoelongDesktop?.updateDivineSelectionData?.(deityData);
+    }
+  }, [deityData, desktopRole]);
 
   useLayoutEffect(() => {
     if (
@@ -477,7 +571,9 @@ export default function App(): JSX.Element {
     ) {
       return;
     }
-    window.xiaoelongDesktop?.notifyDivineReady?.(divineRevealRequestId);
+    return scheduleAfterNextPaint(() => {
+      window.xiaoelongDesktop?.notifyDivineReady?.(divineRevealRequestId);
+    });
   }, [booting, currentUser, desktopRole, divineRevealRequestId, divineViewSession]);
 
   useEffect(() => {
@@ -678,10 +774,16 @@ export default function App(): JSX.Element {
         setSelectedGameId((current) => current ?? payload.game.id);
       });
 
-      socket.on("gomoku:end", (payload) => {
-        setGomokuGames((prev) => upsertGame(prev, payload.game));
-      });
     }
+
+    socket.on("gomoku:end", (payload: GomokuEndPayload) => {
+      if (desktopRole !== "avatar") {
+        setGomokuGames((prev) => upsertGame(prev, payload.game));
+      }
+      if (desktopRole === "avatar" || desktopRole === "single") {
+        setPetReaction(getPetReaction(payload.game.id, payload.winner, currentUserId));
+      }
+    });
 
     return () => {
       socket.disconnect();
@@ -745,11 +847,12 @@ export default function App(): JSX.Element {
     }
 
     const cleanups: Array<() => void> = [];
-    const panelViewCleanup = window.xiaoelongDesktop.onPanelViewChange?.((view) => {
-      setPanelView(view);
+    const panelViewCleanup = window.xiaoelongDesktop.onPanelViewChange?.((session) => {
+      setPanelView(session.view);
+      setPanelRevealRequestId(session.requestId);
     });
     const settingsCleanup = window.xiaoelongDesktop.onSettingsChange?.((settings) => {
-      setDesktopSettings(settings);
+      applyDesktopSettings(settings);
     });
     const loginCleanup = window.xiaoelongDesktop.onLogin?.((nextToken) => {
       if (!nextToken) {
@@ -765,7 +868,11 @@ export default function App(): JSX.Element {
     const updateCleanup = window.xiaoelongDesktop.onUpdateState?.((state) => {
       setUpdateState(state);
     });
-    const divineReturnCleanup = window.xiaoelongDesktop.onDivineReturn?.(() => {
+    const divineReturnCleanup = window.xiaoelongDesktop.onDivineReturn?.((state) => {
+      if (state.data) {
+        deityDataVersionRef.current += 1;
+        setDeityData(state.data);
+      }
       setPanelView("home");
       setActiveTab("divine");
       void loadDeityWorship({ silent: true });
@@ -791,7 +898,7 @@ export default function App(): JSX.Element {
     }
 
     void window.xiaoelongDesktop.getSettings?.().then((settings) => {
-      setDesktopSettings(settings);
+      applyDesktopSettings(settings);
     });
     void window.xiaoelongDesktop.getUpdateState?.().then((state) => {
       setUpdateState(state);
@@ -800,7 +907,7 @@ export default function App(): JSX.Element {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [clearSession, loadTodayMood, loadDeityWorship]);
+  }, [applyDesktopSettings, clearSession, loadTodayMood, loadDeityWorship]);
 
   async function handleJoin(payload: {
     inviteCode: string;
@@ -999,7 +1106,9 @@ export default function App(): JSX.Element {
     setDeityError(null);
     try {
       const result = await submitDeityWorship(token, { deityId });
+      deityDataVersionRef.current += 1;
       setDeityData(result);
+      window.xiaoelongDesktop?.updateDivineSelectionData?.(result);
       return result;
     } catch (error) {
       if (error instanceof ApiError && error.statusCode === 409) {
@@ -1017,16 +1126,15 @@ export default function App(): JSX.Element {
   const handleSelectDivineTab = useCallback(async (): Promise<void> => {
     setActiveTab("divine");
     const latest = await loadDeityWorship({ silent: true });
-    const current = latest ?? deityData;
     if (
       desktopRole === "panel" &&
-      current &&
-      current.todayWorship === null &&
+      latest &&
+      latest.todayWorship === null &&
       window.xiaoelongDesktop?.openDivineSelection
     ) {
-      void window.xiaoelongDesktop.openDivineSelection(current);
+      void window.xiaoelongDesktop.openDivineSelection(latest);
     }
-  }, [deityData, desktopRole, loadDeityWorship]);
+  }, [desktopRole, loadDeityWorship]);
 
   const handleInviteGomoku = useCallback(async (targetUserId: string): Promise<void> => {
     const socket = socketRef.current;
@@ -1134,14 +1242,30 @@ export default function App(): JSX.Element {
   async function handleToggleLoginAtStartup(): Promise<void> {
     const nextSettings = await window.xiaoelongDesktop?.setLoginAtStartup?.(!desktopSettings.openAtLogin);
     if (nextSettings) {
-      setDesktopSettings(nextSettings);
+      applyDesktopSettings(nextSettings);
     }
   }
 
   async function handleTogglePanelTopmost(): Promise<void> {
     const nextSettings = await window.xiaoelongDesktop?.setPanelAlwaysOnTop?.(!desktopSettings.panelAlwaysOnTop);
     if (nextSettings) {
-      setDesktopSettings(nextSettings);
+      applyDesktopSettings(nextSettings);
+    }
+  }
+
+  async function handleCyclePetDisplayMode(): Promise<void> {
+    const nextMode = getNextPetDisplayMode(desktopSettings.petDisplayMode);
+    localStorage.setItem(PET_DISPLAY_MODE_STORAGE_KEY, nextMode);
+    localStorage.setItem(PET_ANIMATIONS_STORAGE_KEY, String(nextMode === "dynamic"));
+    setDesktopSettings((current) => ({
+      ...current,
+      petDisplayMode: nextMode,
+      petAnimationsEnabled: nextMode === "dynamic"
+    }));
+
+    const nextSettings = await window.xiaoelongDesktop?.setPetDisplayMode?.(nextMode);
+    if (nextSettings) {
+      applyDesktopSettings(nextSettings);
     }
   }
 
@@ -1228,12 +1352,14 @@ export default function App(): JSX.Element {
   }, [booting, currentUser, panelOpen, desktopRole]);
 
   useLayoutEffect(() => {
-    if (desktopRole !== "panel" || booting || !currentUser) {
+    if (desktopRole !== "panel" || booting || !currentUser || panelRevealRequestId <= 0) {
       return;
     }
 
-    window.xiaoelongDesktop?.notifyPanelReady?.();
-  }, [desktopRole, booting, currentUser, panelView, activeTab]);
+    return scheduleAfterNextPaint(() => {
+      window.xiaoelongDesktop?.notifyPanelReady?.(panelRevealRequestId);
+    });
+  }, [desktopRole, booting, currentUser, panelView, activeTab, panelRevealRequestId]);
 
   const moodOptions = moodStatus?.options ?? DEFAULT_MOOD_OPTIONS;
   const moodPrompt =
@@ -1371,6 +1497,15 @@ export default function App(): JSX.Element {
               onClick={() => void handleTogglePanelTopmost()}
             >
               {desktopSettings.panelAlwaysOnTop ? "已置顶" : "置顶"}
+            </button>
+            <button
+              type="button"
+              className={desktopSettings.petDisplayMode === "dynamic" ? "primary-soft-button" : "ghost-button"}
+              aria-label={`小鳄龙显示方式：${PET_DISPLAY_MODE_LABELS[desktopSettings.petDisplayMode]}，点击切换`}
+              title="点击切换小鳄龙显示方式"
+              onClick={() => void handleCyclePetDisplayMode()}
+            >
+              {PET_DISPLAY_MODE_LABELS[desktopSettings.petDisplayMode]}
             </button>
             <button
               type="button"
@@ -1549,7 +1684,9 @@ export default function App(): JSX.Element {
         <AvatarDock
           open={panelOpen}
           nickname={currentUser.nickname}
+          displayMode={desktopSettings.petDisplayMode}
           moodPrompt={moodPrompt}
+          reaction={petReaction}
           onToggle={handleAvatarToggle}
           onSettings={handleAvatarSettings}
         />
@@ -1559,7 +1696,14 @@ export default function App(): JSX.Element {
 
   return (
     <main className="page shell-page">
-      <AvatarDock open={panelOpen} nickname={currentUser.nickname} onToggle={handleAvatarToggle} onSettings={handleAvatarSettings} />
+      <AvatarDock
+        open={panelOpen}
+        nickname={currentUser.nickname}
+        displayMode={desktopSettings.petDisplayMode}
+        reaction={desktopRole === "single" ? petReaction : null}
+        onToggle={handleAvatarToggle}
+        onSettings={handleAvatarSettings}
+      />
 
       {panelOpen ? panelContent : null}
     </main>

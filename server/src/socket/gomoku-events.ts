@@ -5,10 +5,13 @@ export function emitGomokuUpdate(
   io: Server<ClientToServerEvents, ServerToClientEvents>,
   game: GomokuGame
 ): void {
-  io.to(`user:${game.playerBlack.id}`).emit("gomoku:update", { game });
-  io.to(`user:${game.playerWhite.id}`).emit("gomoku:update", { game });
-  io.to(`gomoku:${game.id}`).emit("gomoku:update", { game });
+  const audienceRooms = [
+    `user:${game.playerBlack.id}`,
+    `user:${game.playerWhite.id}`,
+    `gomoku:${game.id}`
+  ];
+  io.to(audienceRooms).emit("gomoku:update", { game });
   if (game.status === "finished") {
-    io.to(`gomoku:${game.id}`).emit("gomoku:end", { game, winner: game.winner });
+    io.to(audienceRooms).emit("gomoku:end", { game, winner: game.winner });
   }
 }
