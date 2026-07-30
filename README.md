@@ -2,7 +2,7 @@
 
 小鳄龙是一个给固定小群使用的 Windows/macOS 桌面伴侣。它用 Electron 提供桌面悬浮入口，React/Vite 渲染界面，Express + Socket.io 提供鉴权、聊天、每日问题、心情和五子棋服务，MySQL 持久化数据。
 
-当前版本：`1.3.0`
+当前版本：`1.3.1`
 
 ## 技术栈
 
@@ -177,7 +177,7 @@ npm.cmd run electron:dist
 npm run electron:dist:mac
 ```
 
-该命令会在 `release/` 下生成 `XiaoELong-1.3.0-mac-universal.dmg`、`XiaoELong-1.3.0-mac-universal.zip` 和 `latest-mac.yml`。仓库中的 `Build macOS universal` GitHub Actions 工作流可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对更新元数据中的版本和文件名，并上传名为 `XiaoELong-1.3.0-mac-universal` 的 Actions 产物。
+该命令会在 `release/` 下生成 `XiaoELong-1.3.1-mac-universal.dmg`、`XiaoELong-1.3.1-mac-universal.zip` 和 `latest-mac.yml`。仓库中的 `Build macOS universal` GitHub Actions 工作流可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对更新元数据中的版本和文件名，并上传名为 `XiaoELong-1.3.1-mac-universal` 的 Actions 产物。
 
 下载并解压 Actions 产物后，可在 macOS 终端校验安装包：
 

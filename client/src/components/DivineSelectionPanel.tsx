@@ -193,7 +193,7 @@ function ConstellationMap(props: {
         return (
           <div
             key={deity.id}
-            className={`constellation-node deity-${deity.id.replace("_", "-")} rank-creator_god ${isToday ? "is-today-deity" : ""}`}
+            className={`constellation-node deity-${deity.id.replace("_", "-")} rank-${status.rank} ${isToday ? "is-today-deity" : ""}`}
             style={{
               left: `${position.x}%`,
               top: props.mode === "full" ? `${position.y}%` : `${(position.y / 70) * 100}%`
@@ -228,7 +228,7 @@ function ConstellationMap(props: {
               </div>
               <div className="throne-identity throne-identity--plate">
                 <strong>{deity.name}</strong>
-                <span>{getDeityRankLabel("creator_god")}</span>
+                <span>{getDeityRankLabel(status.rank)}</span>
               </div>
               <span className="throne-base" aria-hidden="true" />
             </div>

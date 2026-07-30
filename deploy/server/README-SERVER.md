@@ -1,8 +1,14 @@
 # 小鳄龙服务器部署与更新说明
 
-当前版本：`1.3.0`
+当前版本：`1.3.1`
 
 本目录是小鳄龙 Windows 服务器部署包，适用于宝塔 Windows 面板和 MySQL 5.6。部署包已将需要使用的 MySQL `JSON` 字段改为 `TEXT`，以兼容 MySQL 5.6。
+
+## 1.3.1 更新说明
+
+- 神选页面恢复按服务器返回的真实神位显示，不再固定显示为创世神。
+- 聊天消息在非当天时显示完整日期和时间。
+- 如果服务器曾用于神选测试并且需要清空测试供奉记录，请按第六节第 6 步执行一次性重置。
 
 ## 1.3.0 更新说明
 
@@ -211,7 +217,7 @@ $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 ```
 
 ```powershell
-Register-ScheduledTask -TaskName "XiaoELongServer" -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "XiaoELong 1.3.0 server" -Force
+Register-ScheduledTask -TaskName "XiaoELongServer" -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "XiaoELong 1.3.1 server" -Force
 ```
 
 启动计划任务：
@@ -310,7 +316,46 @@ Set-Location "C:\wwwroot\server\server"
 Database initialized successfully.
 ```
 
-### 6. 重新启动并验证
+### 6. 仅测试服：重置神选累计
+
+只有在确认 `deity_worships` 中都是可以删除的测试记录时才执行本步骤。清理会将所有神位恢复为凡人，同时清除所有用户的“今日已膜拜”状态；不会影响账号、聊天、心情、每日题目或五子棋数据。
+
+先通过宝塔数据库工具备份 `XiaoELong` 数据库，再查看待清理数据：
+
+```sql
+USE XiaoELong;
+
+SELECT deity_id, COUNT(*) AS total_worships
+FROM deity_worships
+GROUP BY deity_id;
+```
+
+确认后开启事务并清理：
+
+```sql
+START TRANSACTION;
+
+DELETE FROM deity_worships;
+
+SELECT ROW_COUNT() AS deleted_rows;
+SELECT COUNT(*) AS remaining_rows FROM deity_worships;
+```
+
+确认 `remaining_rows` 为 `0` 后执行：
+
+```sql
+COMMIT;
+```
+
+如果结果不符合预期，则执行：
+
+```sql
+ROLLBACK;
+```
+
+不要使用 `TRUNCATE`，也不要把清理语句写入 `src\db\init.sql`。
+
+### 7. 重新启动并验证
 
 ```powershell
 Start-ScheduledTask -TaskName "XiaoELongServer"
