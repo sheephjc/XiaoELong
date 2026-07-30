@@ -357,6 +357,11 @@ body {
   font-size: 13px;
 }
 
+.bubble header time {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .bubble p {
   margin: 0;
   line-height: 1.5;

@@ -12,6 +12,7 @@ import {
   type MutableRefObject
 } from "react";
 import type { ChatFile, ChatMessage } from "@xiaoelong/shared";
+import { formatChatTimestamp } from "../chat-time";
 import { withServerUrl } from "../env";
 import { UserAvatar } from "./UserAvatar";
 
@@ -120,20 +121,6 @@ function normalizeClipboardImageFile(file: File): File {
     type,
     lastModified: Date.now()
   });
-}
-
-function formatTime(dateString: string): string {
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) {
-    return "--:--";
-  }
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    timeZone: "Asia/Shanghai",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23"
-  }).format(date);
 }
 
 function hasFiles(event: DragEvent<HTMLElement>): boolean {
@@ -850,7 +837,7 @@ export const ChatPanel = memo(function ChatPanel(props: ChatPanelProps): JSX.Ele
               <div className="bubble">
                 <header>
                   <strong>{message.user.nickname}</strong>
-                  <time>{formatTime(message.createdAt)}</time>
+                  <time dateTime={message.createdAt}>{formatChatTimestamp(message.createdAt)}</time>
                 </header>
                 {message.image ? (
                   <button
