@@ -58,15 +58,17 @@ jobs:
           test -f "release/${PREFIX}.dmg"
           test -f "release/${PREFIX}.zip"
           test -f release/latest-mac.yml
+          test -f release/latest-mac.json
           grep -Fqx "version: ${RELEASE_VERSION}" release/latest-mac.yml
           grep -Fq "url: ${PREFIX}.zip" release/latest-mac.yml
           grep -Fq "url: ${PREFIX}.dmg" release/latest-mac.yml
+          node scripts/create-mac-update-manifest.mjs --check
 
       - name: Create SHA-256 checksums
         shell: bash
         run: |
           cd release
-          shasum -a 256 *.dmg *.zip | tee SHA256-mac.txt
+          shasum -a 256 *.dmg *.zip latest-mac.json latest-mac.yml | tee SHA256-mac.txt
           shasum -a 256 -c SHA256-mac.txt
 
       - name: Upload macOS artifacts
@@ -77,6 +79,7 @@ jobs:
           path: |
             release/*.dmg
             release/*.zip
+            release/latest-mac.json
             release/latest-mac.yml
             release/mac-architectures.txt
             release/SHA256-mac.txt

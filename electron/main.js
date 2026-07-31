@@ -1,11 +1,22 @@
-const { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, Tray } = require("electron");
+const { app, BrowserWindow, ipcMain, Menu, nativeImage, screen, shell, Tray } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { autoUpdater } = require("electron-updater");
+const {
+  createMacUpdateDownloadUrl,
+  isNewerVersion,
+  loadMacUpdateManifest,
+  validateMacUpdateManifest
+} = require("./manual-mac-updater");
 const { createRenderSession } = require("./render-session");
 
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
+const MAC_MANUAL_UPDATE_MANIFEST_URL = isDevelopment && process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
+  ? process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
+  : "http://43.139.223.204:3001/updates/latest-mac.json";
+const MAC_MANUAL_UPDATE_DOWNLOAD_BASE_URL =
+  "https://github.com/sheephjc/XiaoELong/releases/download/";
 app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
 if (isDevelopment) {
   app.setPath("userData", path.join(app.getPath("appData"), "XiaoELong-dev"));
@@ -71,11 +82,14 @@ let imageViewerState = {
   index: 0
 };
 let imageViewerReady = false;
+let manualMacUpdateManifest = null;
+let manualMacUpdateCheckPromise = null;
 let updateState = {
   status: "idle",
   message: "",
   version: app.getVersion(),
-  progress: null
+  progress: null,
+  manual: process.platform === "darwin"
 };
 
 function clamp(value, min, max) {
@@ -407,16 +421,132 @@ function canUseAutoUpdater() {
   return process.platform !== "darwin" && app.isPackaged && !process.env.ELECTRON_START_URL;
 }
 
+function canUseManualMacUpdater() {
+  return process.platform === "darwin" && app.isPackaged && !process.env.ELECTRON_START_URL;
+}
+
+async function performManualMacUpdateCheck() {
+  if (!canUseManualMacUpdater()) {
+    setUpdateState({
+      status: "unavailable",
+      message: "开发模式下不检查 Mac 更新。",
+      progress: null,
+      manual: true
+    });
+    return getPublicUpdateState();
+  }
+
+  manualMacUpdateManifest = null;
+  setUpdateState({
+    status: "checking",
+    message: "正在检查 Mac 更新...",
+    version: app.getVersion(),
+    progress: null,
+    manual: true
+  });
+
+  try {
+    const manifest = await loadMacUpdateManifest({
+      manifestUrl: MAC_MANUAL_UPDATE_MANIFEST_URL
+    });
+
+    if (isNewerVersion(manifest.version, app.getVersion())) {
+      manualMacUpdateManifest = manifest;
+      setUpdateState({
+        status: "available",
+        message: `发现 Mac 新版本 ${manifest.version}，可下载 DMG 手动覆盖安装。`,
+        version: manifest.version,
+        progress: null,
+        manual: true
+      });
+    } else {
+      manualMacUpdateManifest = null;
+      setUpdateState({
+        status: "not-available",
+        message: `已是最新版本 ${app.getVersion()}。`,
+        version: app.getVersion(),
+        progress: null,
+        manual: true
+      });
+    }
+  } catch (error) {
+    manualMacUpdateManifest = null;
+    setUpdateState({
+      status: "error",
+      message: error instanceof Error ? `检查 Mac 更新失败：${error.message}` : "检查 Mac 更新失败。",
+      version: app.getVersion(),
+      progress: null,
+      manual: true
+    });
+  }
+
+  return getPublicUpdateState();
+}
+
+function checkForManualMacUpdate() {
+  if (!manualMacUpdateCheckPromise) {
+    manualMacUpdateCheckPromise = performManualMacUpdateCheck().finally(() => {
+      manualMacUpdateCheckPromise = null;
+    });
+  }
+
+  return manualMacUpdateCheckPromise;
+}
+
+async function openManualMacUpdateDownload() {
+  if (manualMacUpdateCheckPromise) {
+    return getPublicUpdateState();
+  }
+
+  if (!canUseManualMacUpdater() || !manualMacUpdateManifest) {
+    setUpdateState({
+      status: "error",
+      message: "请先检查 Mac 更新。",
+      progress: null,
+      manual: true
+    });
+    return getPublicUpdateState();
+  }
+
+  try {
+    const manifest = validateMacUpdateManifest(manualMacUpdateManifest);
+    const downloadUrl = createMacUpdateDownloadUrl(
+      manifest,
+      MAC_MANUAL_UPDATE_DOWNLOAD_BASE_URL
+    );
+    await shell.openExternal(downloadUrl);
+    setUpdateState({
+      status: "available",
+      message: "已在默认浏览器中打开 GitHub DMG 下载。下载后请退出旧版并覆盖安装。",
+      progress: null,
+      manual: true
+    });
+  } catch (error) {
+    setUpdateState({
+      status: "error",
+      message: error instanceof Error ? `打开 DMG 下载失败：${error.message}` : "打开 DMG 下载失败。",
+      progress: null,
+      manual: true
+    });
+  }
+
+  return getPublicUpdateState();
+}
+
 function setupAutoUpdater() {
   if (process.platform === "darwin") {
     setUpdateState({
-      status: "unavailable",
-      message: "macOS 未签名测试版暂不支持自动更新。",
-      progress: null
+      status: "idle",
+      message: "",
+      version: app.getVersion(),
+      progress: null,
+      manual: true
     });
+    void checkForManualMacUpdate();
     return;
   }
 
+  setUpdateState({ manual: false });
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
 
@@ -1585,7 +1715,15 @@ ipcMain.handle("desktop:settings:set-pet-animations-enabled", (_event, enabled) 
 
 ipcMain.handle("updates:get-state", () => getPublicUpdateState());
 
-ipcMain.handle("updates:check", async () => {
+ipcMain.handle("updates:check", async (event) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return getPublicUpdateState();
+  }
+
+  if (process.platform === "darwin") {
+    return checkForManualMacUpdate();
+  }
+
   if (!canUseAutoUpdater()) {
     return getPublicUpdateState();
   }
@@ -1594,7 +1732,15 @@ ipcMain.handle("updates:check", async () => {
   return getPublicUpdateState();
 });
 
-ipcMain.handle("updates:download", async () => {
+ipcMain.handle("updates:download", async (event) => {
+  if (!panelWindow || panelWindow.isDestroyed() || event.sender !== panelWindow.webContents) {
+    return getPublicUpdateState();
+  }
+
+  if (process.platform === "darwin") {
+    return openManualMacUpdateDownload();
+  }
+
   if (!canUseAutoUpdater()) {
     return getPublicUpdateState();
   }
@@ -1609,6 +1755,10 @@ ipcMain.handle("updates:download", async () => {
 });
 
 ipcMain.handle("updates:install", () => {
+  if (process.platform === "darwin") {
+    return getPublicUpdateState();
+  }
+
   if (updateState.status !== "downloaded") {
     return getPublicUpdateState();
   }

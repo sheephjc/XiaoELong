@@ -23,6 +23,7 @@ interface XiaoELongUpdateState {
   message: string;
   version: string;
   progress: number | null;
+  manual: boolean;
 }
 
 interface XiaoELongDesktopSettings {

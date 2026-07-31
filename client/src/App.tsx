@@ -384,7 +384,8 @@ export default function App(): JSX.Element {
     status: "idle",
     message: "",
     version: "0.0.0",
-    progress: null
+    progress: null,
+    manual: false
   });
   const desktopRole = getDesktopRole();
   const currentUserId = currentUser?.id ?? null;
@@ -1532,7 +1533,7 @@ export default function App(): JSX.Element {
                 disabled={updateBusy}
                 onClick={() => void handleDownloadUpdate()}
               >
-                下载更新
+                {updateState.manual ? "打开 DMG 下载" : "下载更新"}
               </button>
             ) : null}
             {updateDownloaded ? (
