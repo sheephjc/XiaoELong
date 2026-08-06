@@ -603,8 +603,13 @@
   transform-origin: top center;
 }
 
-/* 主神与创世神的全屏主题能量翼；缩略模式不创建该节点。 */
-.constellation-full .constellation-node .throne-wings {
+/* 主神与创世神的全屏主题能量翼；其他等级默认隐藏作为防线。 */
+.constellation-node .throne-wings {
+  display: none;
+}
+
+.constellation-full .constellation-node.rank-main_god .throne-wings,
+.constellation-full .constellation-node.rank-creator_god .throne-wings {
   position: absolute;
   z-index: -2;
   top: -35%;
@@ -636,7 +641,7 @@
   display: none;
 }
 
-/* 凡人到主神使用纯文字识别；真神起将同一内容升级为正式铭片。 */
+/* 凡人与半神使用纯文字识别；真神起将同一内容升级为正式铭片。 */
 .constellation-node .throne-identity--plain {
   border: 0;
   background: none;
@@ -817,7 +822,11 @@
   filter: blur(3px) saturate(1.15);
 }
 
-/* 七枚神明文字粒子从真神起出现；缩略图保留全部七枚但缩短路径。 */
+/* 七枚神明文字粒子从真神起出现；其他等级默认隐藏作为防线。 */
+.constellation-node .throne-particle {
+  display: none;
+}
+
 .constellation-node.rank-true_god .throne-particle,
 .constellation-node.rank-main_god .throne-particle,
 .constellation-node.rank-creator_god .throne-particle {

@@ -2,7 +2,7 @@
 
 小鳄龙是一个给固定小群使用的 Windows/macOS 桌面伴侣。它用 Electron 提供桌面悬浮入口，React/Vite 渲染界面，Express + Socket.io 提供鉴权、聊天、每日问题、心情和五子棋服务，MySQL 持久化数据。
 
-当前版本：`1.3.2`
+当前版本：`1.3.3`
 
 ## 技术栈
 
@@ -177,7 +177,7 @@ npm.cmd run electron:dist
 npm run electron:dist:mac
 ```
 
-该命令会在 `release/` 下生成 `XiaoELong-1.3.2-mac-universal.dmg`、`XiaoELong-1.3.2-mac-universal.zip`、`latest-mac.yml` 和 `latest-mac.json`。仓库中的 `Build macOS universal` GitHub Actions 工作流可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对版本、文件名、DMG 大小与 SHA-256，并上传名为 `XiaoELong-1.3.2-mac-universal` 的 Actions 产物。
+该命令会在 `release/` 下生成 `XiaoELong-1.3.3-mac-universal.dmg`、`XiaoELong-1.3.3-mac-universal.zip`、`latest-mac.yml` 和 `latest-mac.json`。仓库中的 `Build macOS universal` GitHub Actions 工作流可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对版本、文件名、DMG 大小与 SHA-256，并上传名为 `XiaoELong-1.3.3-mac-universal` 的 Actions 产物。
 
 下载并解压 Actions 产物后，可在 macOS 终端校验安装包：
 
@@ -198,8 +198,8 @@ xattr -dr com.apple.quarantine /Applications/XiaoELong.app
 - 从 `1.3.2` 起，Mac 客户端会读取服务器上的 `latest-mac.json` 检查版本；发现新版本时，“打开 DMG 下载”按钮会用默认浏览器打开本项目固定的 GitHub Release HTTPS 地址。
 - 浏览器下载完成后，完全退出旧版 XiaoELong，打开 DMG，将应用拖入“应用程序”并选择替换，再重新打开。登录信息和本机设置保存在用户数据目录中，正常覆盖应用不会清除它们。
 - 这是“检查版本 + 打开可信下载链接”，不是静默自动安装；未签名应用若要使用 Electron 的完整自动更新，仍需 Apple Developer 证书、签名和公证。
-- 已经发出的 `1.3.1` 不包含检查逻辑，必须手动安装一次 `1.3.2`；从 `1.3.2` 开始才会提示后续版本。
-- 发布时将 DMG 上传到标签为 `v1.3.2` 的 GitHub Release，再把 Actions 生成的 `latest-mac.json` 上传到服务器更新目录。不要上传 `latest-mac.yml`，它不用于当前的 Mac 手动更新流程。
+- 已经发出的 `1.3.1` 不包含检查逻辑，必须手动安装一次 `1.3.2` 或更新版本；从 `1.3.2` 开始才会提示后续版本。
+- 发布时将 DMG 上传到标签为 `v1.3.3` 的 GitHub Release，再把 Actions 生成的 `latest-mac.json` 上传到服务器更新目录。不要上传 `latest-mac.yml`，它不用于当前的 Mac 手动更新流程。
 - Windows 自动更新不受影响。若用户网络无法访问 GitHub，仍可直接向其发送 DMG。
 
 `build` 会先运行 `clean`，避免旧的 `dist` 文件混入发布产物。

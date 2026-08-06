@@ -23,6 +23,7 @@ describe("manual Mac updater", () => {
   it("compares numeric versions instead of lexical strings", () => {
     expect(compareVersions("1.10.0", "1.9.9")).toBe(1);
     expect(compareVersions("1.3.2", "1.3.2")).toBe(0);
+    expect(isNewerVersion("1.3.3", "1.3.2")).toBe(true);
     expect(isNewerVersion("1.3.1", "1.3.2")).toBe(false);
   });
 
