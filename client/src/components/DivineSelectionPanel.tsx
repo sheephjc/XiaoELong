@@ -8,6 +8,7 @@ import {
   type DeityWorshipResponse,
   type DeityWorshipTodayResponse
 } from "@xiaoelong/shared";
+import { getDeityRankVisuals } from "../deity-rank-visuals";
 import EnergyWing from "./EnergyWing";
 import aImage from "../assets/deities/a.jpg";
 import chiliImage from "../assets/deities/chili.jpg";
@@ -160,7 +161,7 @@ function getRankProgress(status: DeityStatus): number {
   );
 }
 
-function ConstellationMap(props: {
+export function ConstellationMap(props: {
   data: DeityWorshipTodayResponse;
   mode: ConstellationMode;
   submittingDeityId?: DeityId | null;
@@ -189,6 +190,7 @@ function ConstellationMap(props: {
         const progress = getRankProgress(status);
         const isToday = todayDeityId === deity.id;
         const disabled = props.submittingDeityId !== null || todayDeityId !== null;
+        const rankVisuals = getDeityRankVisuals(status.rank);
 
         return (
           <div
@@ -201,7 +203,7 @@ function ConstellationMap(props: {
           >
             <div className="deity-throne">
               <span className="throne-light-column" aria-hidden="true" />
-              {props.mode === "full" ? (
+              {props.mode === "full" && rankVisuals.showEnergyWings ? (
                 <span className="throne-wings" aria-hidden="true">
                   <EnergyWing deityId={deity.id} enhanced className="throne-energy-wing" />
                 </span>
@@ -214,19 +216,25 @@ function ConstellationMap(props: {
               <span className="throne-arm throne-arm-left" aria-hidden="true" />
               <span className="throne-arm throne-arm-right" aria-hidden="true" />
               <span className="throne-seat" aria-hidden="true" />
-              {Array.from({ length: 7 }, (_, particleIndex) => (
-                <span
-                  key={particleIndex}
-                  className={`throne-particle throne-particle-${particleIndex + 1}`}
-                  aria-hidden="true"
-                >
-                  {DEITY_PARTICLES[deity.id]}
-                </span>
-              ))}
+              {rankVisuals.showParticles
+                ? Array.from({ length: 7 }, (_, particleIndex) => (
+                    <span
+                      key={particleIndex}
+                      className={`throne-particle throne-particle-${particleIndex + 1}`}
+                      aria-hidden="true"
+                    >
+                      {DEITY_PARTICLES[deity.id]}
+                    </span>
+                  ))
+                : null}
               <div className="throne-portrait-shell">
                 <img src={DEITY_IMAGES[deity.id]} alt={`${deity.name}神像`} />
               </div>
-              <div className="throne-identity throne-identity--plate">
+              <div
+                className={`throne-identity ${rankVisuals.useIdentityPlate
+                  ? "throne-identity--plate"
+                  : "throne-identity--plain"}`}
+              >
                 <strong>{deity.name}</strong>
                 <span>{getDeityRankLabel(status.rank)}</span>
               </div>
