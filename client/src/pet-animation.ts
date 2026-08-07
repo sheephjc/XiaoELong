@@ -173,7 +173,17 @@ export function normalizePetDisplayMode(
   if (value === "dynamic" || value === "static" || value === "image") {
     return value;
   }
-  return legacyAnimationsEnabled === false ? "static" : "dynamic";
+
+  if (value === null || value === undefined) {
+    if (legacyAnimationsEnabled === true) {
+      return "dynamic";
+    }
+    if (legacyAnimationsEnabled === false) {
+      return "static";
+    }
+  }
+
+  return "image";
 }
 
 export function getNextPetDisplayMode(mode: PetDisplayMode): PetDisplayMode {

@@ -66,7 +66,8 @@ let panelPlacement = "upper-left";
 let currentWindowMode = "auth";
 let currentPanelView = "home";
 let panelAlwaysOnTop = true;
-let petDisplayMode = "dynamic";
+let petDisplayMode = "image";
+let petDisplayModePersisted = false;
 let panelRendererReady = false;
 let pendingPanelShow = false;
 let panelWindowRevealed = false;
@@ -105,13 +106,19 @@ function getDesktopSettingsFilePath() {
 }
 
 function loadPersistedDesktopSettings() {
-  petDisplayMode = "dynamic";
+  petDisplayMode = "image";
+  petDisplayModePersisted = false;
   try {
     const parsed = JSON.parse(fs.readFileSync(getDesktopSettingsFilePath(), "utf8"));
-    if (PET_DISPLAY_MODES.has(parsed?.petDisplayMode)) {
-      petDisplayMode = parsed.petDisplayMode;
+    const hasDisplayMode = parsed !== null
+      && typeof parsed === "object"
+      && Object.prototype.hasOwnProperty.call(parsed, "petDisplayMode");
+    if (hasDisplayMode) {
+      petDisplayMode = PET_DISPLAY_MODES.has(parsed.petDisplayMode) ? parsed.petDisplayMode : "image";
+      petDisplayModePersisted = true;
     } else if (typeof parsed?.petAnimationsEnabled === "boolean") {
       petDisplayMode = parsed.petAnimationsEnabled ? "dynamic" : "static";
+      petDisplayModePersisted = true;
     }
   } catch {
     // Missing or invalid preferences use the safe default.
@@ -218,7 +225,10 @@ function clampAvatarBounds(bounds, cursorPoint = null) {
 
 function getAvatarSize() {
   return {
-    width: avatarMoodPromptVisible ? AVATAR_MOOD_WIDTH : AVATAR_WIDTH,
+    // Keep the transparent native surface stable when the mood prompt closes.
+    // The unused area remains transparent and is already covered by the
+    // renderer-driven mouse passthrough handling.
+    width: AVATAR_MOOD_WIDTH,
     height: AVATAR_HEIGHT
   };
 }
@@ -372,7 +382,8 @@ function getDesktopSettings() {
     openAtLogin: isDevelopment ? false : app.getLoginItemSettings().openAtLogin,
     panelAlwaysOnTop,
     petDisplayMode,
-    petAnimationsEnabled: petDisplayMode === "dynamic"
+    petAnimationsEnabled: petDisplayMode === "dynamic",
+    petDisplayModePersisted
   };
 }
 
@@ -615,8 +626,16 @@ function setPetDisplayMode(mode) {
     return;
   }
   petDisplayMode = mode;
+  petDisplayModePersisted = true;
   persistDesktopSettings();
   broadcastSettings();
+}
+
+function migratePetDisplayMode(mode) {
+  if (!petDisplayModePersisted) {
+    setPetDisplayMode(mode);
+  }
+  return getDesktopSettings();
 }
 
 function setPetAnimationsEnabled(enabled) {
@@ -920,8 +939,10 @@ function createAvatarWindow() {
   const avatarSize = getAvatarSize();
   avatarWindow = new BrowserWindow({
     ...getBottomRightBounds(avatarSize.width, avatarSize.height),
-    minWidth: AVATAR_WIDTH,
+    minWidth: AVATAR_MOOD_WIDTH,
+    maxWidth: AVATAR_MOOD_WIDTH,
     minHeight: AVATAR_HEIGHT,
+    maxHeight: AVATAR_HEIGHT,
     frame: false,
     transparent: true,
     backgroundColor: "#00000000",
@@ -1706,6 +1727,10 @@ ipcMain.handle("desktop:settings:set-panel-always-on-top", (_event, enabled) => 
 ipcMain.handle("desktop:settings:set-pet-display-mode", (_event, mode) => {
   setPetDisplayMode(mode);
   return getDesktopSettings();
+});
+
+ipcMain.handle("desktop:settings:migrate-pet-display-mode", (_event, mode) => {
+  return migratePetDisplayMode(mode);
 });
 
 ipcMain.handle("desktop:settings:set-pet-animations-enabled", (_event, enabled) => {

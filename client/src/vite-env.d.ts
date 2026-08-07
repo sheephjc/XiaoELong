@@ -31,6 +31,7 @@ interface XiaoELongDesktopSettings {
   panelAlwaysOnTop: boolean;
   petDisplayMode: "dynamic" | "static" | "image";
   petAnimationsEnabled: boolean;
+  petDisplayModePersisted: boolean;
 }
 
 interface Window {
@@ -86,6 +87,9 @@ interface Window {
     readonly setLoginAtStartup?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;
     readonly setPanelAlwaysOnTop?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;
     readonly setPetDisplayMode?: (
+      mode: "dynamic" | "static" | "image"
+    ) => Promise<XiaoELongDesktopSettings>;
+    readonly migratePetDisplayMode?: (
       mode: "dynamic" | "static" | "image"
     ) => Promise<XiaoELongDesktopSettings>;
     readonly setPetAnimationsEnabled?: (enabled: boolean) => Promise<XiaoELongDesktopSettings>;

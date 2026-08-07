@@ -174,6 +174,20 @@ export function AvatarDock(props: AvatarDockProps): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (props.moodPrompt) {
+      setAvatarClickThrough(false);
+      return;
+    }
+
+    if (lastMousePointRef.current.hasPoint) {
+      updateClickThroughForPoint(lastMousePointRef.current.x, lastMousePointRef.current.y);
+      return;
+    }
+
+    setAvatarClickThrough(true);
+  }, [Boolean(props.moodPrompt)]);
+
   function handlePointerDown(event: PointerEvent<HTMLButtonElement>): void {
     if (event.button !== 0) {
       return;
