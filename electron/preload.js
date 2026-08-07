@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld("xiaoelongDesktop", {
   setLoginAtStartup: (enabled) => ipcRenderer.invoke("desktop:settings:set-login-at-startup", enabled),
   setPanelAlwaysOnTop: (enabled) => ipcRenderer.invoke("desktop:settings:set-panel-always-on-top", enabled),
   setPetDisplayMode: (mode) => ipcRenderer.invoke("desktop:settings:set-pet-display-mode", mode),
+  migratePetDisplayMode: (mode) => ipcRenderer.invoke("desktop:settings:migrate-pet-display-mode", mode),
   setPetAnimationsEnabled: (enabled) => ipcRenderer.invoke("desktop:settings:set-pet-animations-enabled", enabled),
   getUpdateState: () => ipcRenderer.invoke("updates:get-state"),
   checkForUpdates: () => ipcRenderer.invoke("updates:check"),

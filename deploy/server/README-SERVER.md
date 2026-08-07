@@ -1,8 +1,14 @@
 # 小鳄龙服务器部署与更新说明
 
-当前版本：`1.3.3`
+当前版本：`2.0.0`
 
 本目录是小鳄龙 Windows 服务器部署包，适用于宝塔 Windows 面板和 MySQL 5.6。部署包已将需要使用的 MySQL `JSON` 字段改为 `TEXT`，以兼容 MySQL 5.6。
+
+## 2.0.0 更新说明
+
+- 修复选择今日心情后透明桌宠窗口重新缩放导致的闪屏。
+- 未保存显示偏好的用户默认使用“只显示形象”；已经明确选择过显示模式的用户继续沿用原设置。
+- 本次没有后端接口或数据库结构变更。服务器已是 `1.3.3` 时无需重新安装依赖或初始化数据库；Windows 只需替换更新产物，Mac 只需在 GitHub Release 就绪后替换 `updates/latest-mac.json`。
 
 ## 1.3.3 更新说明
 
@@ -229,7 +235,7 @@ $Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccou
 ```
 
 ```powershell
-Register-ScheduledTask -TaskName "XiaoELongServer" -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "XiaoELong 1.3.3 server" -Force
+Register-ScheduledTask -TaskName "XiaoELongServer" -Action $Action -Trigger $Trigger -Settings $Settings -Principal $Principal -Description "XiaoELong 2.0.0 server" -Force
 ```
 
 启动计划任务：
@@ -431,11 +437,11 @@ C:\wwwroot\server\updates\latest-mac.json
 
 发布顺序如下：
 
-1. 在 GitHub 创建标签为 `v1.3.3` 的 Release，并上传 Actions 产物中的 `XiaoELong-1.3.3-mac-universal.dmg`。
+1. 在 GitHub 创建标签为 `v2.0.0` 的 Release，并上传 Actions 产物中的 `XiaoELong-2.0.0-mac-universal.dmg`。
 2. 在浏览器中确认下面的 GitHub HTTPS 地址能开始下载，并核对 DMG 的大小与 `SHA256-mac.txt`：
 
 ```text
-https://github.com/sheephjc/XiaoELong/releases/download/v1.3.3/XiaoELong-1.3.3-mac-universal.dmg
+https://github.com/sheephjc/XiaoELong/releases/download/v2.0.0/XiaoELong-2.0.0-mac-universal.dmg
 ```
 
 3. 最后把同一次 Actions 产物中的 `latest-mac.json` 上传到服务器的 `updates` 目录，覆盖旧清单。
@@ -447,7 +453,7 @@ http://43.139.223.204:3001/updates/latest-mac.json
 
 Mac 客户端只从清单读取版本和发布校验信息，实际打开的下载地址由客户端固定构造为本项目的 GitHub Release HTTPS 地址，清单不能将用户重定向到其他站点。`latest-mac.yml` 和 Mac ZIP 不需要上传到服务器。
 
-静态清单替换后通常不需要重启后端。已经安装 `1.3.2` 的用户会看到 `1.3.3` 更新提示；`1.3.1` 没有这段逻辑，需要直接发送 `1.3.3` DMG。
+静态清单替换后通常不需要重启后端。已经安装 `1.3.2` 或更高版本的用户会看到 `2.0.0` 更新提示；`1.3.1` 没有这段逻辑，需要直接发送 `2.0.0` DMG。
 
 Mac 用户下载后需要完全退出旧版 XiaoELong，打开 DMG，把应用拖入“应用程序”并选择替换。未签名测试版首次打开时，可能还需在 Finder 中右键选择“打开”，或在“系统设置 → 隐私与安全性”中允许运行。若用户无法访问 GitHub，可以直接把 DMG 文件发给他。
 

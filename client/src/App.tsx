@@ -77,12 +77,19 @@ function getInitialAccessToken(): string | null {
   return persistedToken;
 }
 
-function getInitialPetDisplayMode(): PetDisplayMode {
+interface InitialPetDisplayPreference {
+  mode: PetDisplayMode;
+  persisted: boolean;
+}
+
+function getInitialPetDisplayPreference(): InitialPetDisplayPreference {
+  const storedMode = localStorage.getItem(PET_DISPLAY_MODE_STORAGE_KEY);
   const legacyValue = localStorage.getItem(PET_ANIMATIONS_STORAGE_KEY);
-  return normalizePetDisplayMode(
-    localStorage.getItem(PET_DISPLAY_MODE_STORAGE_KEY),
-    legacyValue === null ? undefined : legacyValue !== "false"
-  );
+  const legacyAnimationsEnabled = legacyValue === "true" ? true : legacyValue === "false" ? false : undefined;
+  return {
+    mode: normalizePetDisplayMode(storedMode, legacyAnimationsEnabled),
+    persisted: storedMode !== null || legacyAnimationsEnabled !== undefined
+  };
 }
 
 interface InitialDivineSession {
@@ -116,6 +123,7 @@ interface DesktopSettingsState {
   panelAlwaysOnTop: boolean;
   petDisplayMode: PetDisplayMode;
   petAnimationsEnabled: boolean;
+  petDisplayModePersisted: boolean;
 }
 
 function getDesktopRole(): DesktopRole {
@@ -154,7 +162,8 @@ function scheduleAfterNextPaint(callback: () => void): () => void {
 }
 
 const INITIAL_PANEL_SESSION = getInitialPanelSession();
-const INITIAL_PET_DISPLAY_MODE = getInitialPetDisplayMode();
+const INITIAL_PET_DISPLAY_PREFERENCE = getInitialPetDisplayPreference();
+const INITIAL_PET_DISPLAY_MODE = INITIAL_PET_DISPLAY_PREFERENCE.mode;
 
 function updatePresenceStatus(current: PresenceUser[], onlineUserIds: string[]): PresenceUser[] {
   const onlineSet = new Set(onlineUserIds);
@@ -378,7 +387,8 @@ export default function App(): JSX.Element {
     openAtLogin: false,
     panelAlwaysOnTop: true,
     petDisplayMode: INITIAL_PET_DISPLAY_MODE,
-    petAnimationsEnabled: INITIAL_PET_DISPLAY_MODE === "dynamic"
+    petAnimationsEnabled: INITIAL_PET_DISPLAY_MODE === "dynamic",
+    petDisplayModePersisted: INITIAL_PET_DISPLAY_PREFERENCE.persisted
   });
   const [updateState, setUpdateState] = useState<XiaoELongUpdateState>({
     status: "idle",
@@ -405,6 +415,21 @@ export default function App(): JSX.Element {
     localStorage.setItem(PET_ANIMATIONS_STORAGE_KEY, String(nextSettings.petAnimationsEnabled));
     setDesktopSettings(nextSettings);
   }, []);
+
+  const synchronizeDesktopSettings = useCallback(async (settings: DesktopSettingsState): Promise<void> => {
+    if (settings.petDisplayModePersisted) {
+      applyDesktopSettings(settings);
+      return;
+    }
+
+    const migratedSettings = await window.xiaoelongDesktop?.migratePetDisplayMode?.(INITIAL_PET_DISPLAY_MODE);
+    applyDesktopSettings(migratedSettings ?? {
+      ...settings,
+      petDisplayMode: INITIAL_PET_DISPLAY_MODE,
+      petAnimationsEnabled: INITIAL_PET_DISPLAY_MODE === "dynamic",
+      petDisplayModePersisted: true
+    });
+  }, [applyDesktopSettings]);
 
   const handleStatusBarExtraHeight = useCallback((height: number): void => {
     if (desktopRole === "panel") {
@@ -853,7 +878,7 @@ export default function App(): JSX.Element {
       setPanelRevealRequestId(session.requestId);
     });
     const settingsCleanup = window.xiaoelongDesktop.onSettingsChange?.((settings) => {
-      applyDesktopSettings(settings);
+      void synchronizeDesktopSettings(settings);
     });
     const loginCleanup = window.xiaoelongDesktop.onLogin?.((nextToken) => {
       if (!nextToken) {
@@ -899,7 +924,7 @@ export default function App(): JSX.Element {
     }
 
     void window.xiaoelongDesktop.getSettings?.().then((settings) => {
-      applyDesktopSettings(settings);
+      void synchronizeDesktopSettings(settings);
     });
     void window.xiaoelongDesktop.getUpdateState?.().then((state) => {
       setUpdateState(state);
@@ -908,7 +933,7 @@ export default function App(): JSX.Element {
     return () => {
       cleanups.forEach((cleanup) => cleanup());
     };
-  }, [applyDesktopSettings, clearSession, loadTodayMood, loadDeityWorship]);
+  }, [clearSession, loadTodayMood, loadDeityWorship, synchronizeDesktopSettings]);
 
   async function handleJoin(payload: {
     inviteCode: string;

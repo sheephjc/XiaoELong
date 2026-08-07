@@ -42,11 +42,24 @@ describe("pet drag gestures", () => {
 });
 
 describe("pet playback preferences", () => {
-  it("migrates legacy animation preferences and preserves valid display modes", () => {
+  it("preserves valid display modes", () => {
     expect(normalizePetDisplayMode("image", true)).toBe("image");
     expect(normalizePetDisplayMode("static", true)).toBe("static");
+    expect(normalizePetDisplayMode("dynamic", false)).toBe("dynamic");
+  });
+
+  it("migrates explicit legacy animation preferences when no display mode was saved", () => {
+    expect(normalizePetDisplayMode(undefined, true)).toBe("dynamic");
     expect(normalizePetDisplayMode(undefined, false)).toBe("static");
-    expect(normalizePetDisplayMode("invalid", true)).toBe("dynamic");
+    expect(normalizePetDisplayMode(null, true)).toBe("dynamic");
+    expect(normalizePetDisplayMode(null, false)).toBe("static");
+  });
+
+  it("defaults new or invalid preferences to the original image", () => {
+    expect(normalizePetDisplayMode(undefined)).toBe("image");
+    expect(normalizePetDisplayMode(null)).toBe("image");
+    expect(normalizePetDisplayMode("invalid", true)).toBe("image");
+    expect(normalizePetDisplayMode("invalid", false)).toBe("image");
   });
 
   it("cycles through dynamic, static frame, and original image modes", () => {
