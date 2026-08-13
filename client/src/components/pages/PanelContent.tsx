@@ -70,30 +70,34 @@ export function PanelContent(): JSX.Element | null {
 
       {socketError ? <div className="connection-toast">{socketError}</div> : null}
 
-      <StatusBar />
+      <div className="panel-body">
+        <nav className="module-tabs module-tabs-sidebar" aria-label="模块切换">
+          <button type="button" className={activeTab === "chat" ? "active" : ""} onClick={() => setActiveTab("chat")}>
+            聊天
+          </button>
+          <button type="button" className={activeTab === "daily" ? "active" : ""} onClick={() => setActiveTab("daily")}>
+            每日一题
+          </button>
+          <button type="button" className={activeTab === "divine" ? "active" : ""} onClick={() => void selectDivineTab()}>
+            神选
+          </button>
+          <button type="button" className={activeTab === "gomoku" ? "active" : ""} onClick={() => setActiveTab("gomoku")}>
+            五子棋
+          </button>
+        </nav>
 
-      <nav className="module-tabs">
-        <button type="button" className={activeTab === "chat" ? "active" : ""} onClick={() => setActiveTab("chat")}>
-          聊天
-        </button>
-        <button type="button" className={activeTab === "daily" ? "active" : ""} onClick={() => setActiveTab("daily")}>
-          每日一题
-        </button>
-        <button type="button" className={activeTab === "divine" ? "active" : ""} onClick={() => void selectDivineTab()}>
-          神选
-        </button>
-        <button type="button" className={activeTab === "gomoku" ? "active" : ""} onClick={() => setActiveTab("gomoku")}>
-          五子棋
-        </button>
-      </nav>
+        <div className="panel-content">
+          <StatusBar />
 
-      {activeTab === "chat" ? <ChatPanel /> : null}
+          {activeTab === "chat" ? <ChatPanel /> : null}
 
-      {activeTab === "daily" ? <DailyQuestionPanel /> : null}
+          {activeTab === "daily" ? <DailyQuestionPanel /> : null}
 
-      {activeTab === "divine" ? <DivineSelectionPanel /> : null}
+          {activeTab === "divine" ? <DivineSelectionPanel /> : null}
 
-      {activeTab === "gomoku" ? <GomokuPanel /> : null}
+          {activeTab === "gomoku" ? <GomokuPanel /> : null}
+        </div>
+      </div>
     </div>
   );
 
