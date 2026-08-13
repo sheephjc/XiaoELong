@@ -3,12 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 const clientDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   base: "./",
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
       // 直接解析 shared 源码，避免依赖构建产物 shared/dist（与根 vitest.config.ts 一致）

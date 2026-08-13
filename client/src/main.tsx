@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppProviders } from "./AppProviders";
+import "./styles/index.css";
 import "./styles/styles.css";
 import "./styles/divine-constellation.css";
 
