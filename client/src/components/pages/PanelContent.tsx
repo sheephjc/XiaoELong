@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent } from "react";
 import { type PetDisplayMode } from "../../utils/pet-animation";
 import { COLOR_THEME_OPTIONS } from "../../utils/color-theme";
+import {
+  getBirthdayCelebration,
+  rememberBirthdayDialog,
+  shouldShowBirthdayDialog
+} from "../../utils/birthday-celebration";
 import { getReleaseAnnouncement, RELEASE_ANNOUNCEMENTS } from "../../data/release-announcements";
 import mascotHitMaskImage from "../../assets/xiaoelong-mascot-hitmask.png";
 import mascotImage from "../../assets/xiaoelong-mascot.png";
@@ -12,6 +17,7 @@ import clientPackage from "../../../package.json";
 import { ModuleTabIcon } from "../atoms/ModuleTabIcon";
 import { PetSprite } from "../atoms/PetSprite";
 import { ChatPanel } from "../panels/ChatPanel";
+import { BirthdayCelebration } from "../panels/BirthdayCelebration";
 import { DailyQuestionPanel } from "../panels/DailyQuestionPanel";
 import { DivineSelectionPanel } from "../panels/DivineSelectionPanel";
 import { GomokuPanel } from "../panels/GomokuPanel";
@@ -36,6 +42,11 @@ function rememberCurrentReleaseAnnouncement(): void {
   } catch {
     // 存储不可用时只影响“仅展示一次”，不阻止关闭公告。
   }
+}
+
+function millisecondsUntilNextDay(date: Date): number {
+  const nextDay = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  return Math.max(1_000, nextDay.getTime() - date.getTime() + 250);
 }
 
 const PET_DISPLAY_MODE_LABELS: Record<PetDisplayMode, string> = {
@@ -81,6 +92,15 @@ export function PanelContent(): JSX.Element | null {
   const [releaseHistoryOpen, setReleaseHistoryOpen] = useState(false);
   const [currentReleaseOpen, setCurrentReleaseOpen] = useState(shouldShowCurrentReleaseAnnouncement);
   const [appearanceSection, setAppearanceSection] = useState<AppearanceSection>("colors");
+  const [today, setToday] = useState(() => new Date());
+  const birthdayCelebration = getBirthdayCelebration(today);
+  const birthdayDateKey = birthdayCelebration?.dateKey ?? null;
+  const [birthdayDialogDateKey, setBirthdayDialogDateKey] = useState<string | null>(() => (
+    birthdayCelebration && shouldShowBirthdayDialog(birthdayCelebration)
+      ? birthdayCelebration.dateKey
+      : null
+  ));
+  const birthdayDialogOpen = birthdayDateKey !== null && birthdayDialogDateKey === birthdayDateKey;
 
   // 设置面板顶部栏滚动时才显示滚动条，滚动停止 500ms 后隐藏
   const settingsScrollEndTimerRef = useRef<number | null>(null);
@@ -107,6 +127,18 @@ export function PanelContent(): JSX.Element | null {
       window.clearTimeout(appearanceScrollEndTimerRef.current);
     }
   }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setToday(new Date()), millisecondsUntilNextDay(today));
+    return () => window.clearTimeout(timer);
+  }, [today]);
+
+  useEffect(() => {
+    const celebration = getBirthdayCelebration(today);
+    setBirthdayDialogDateKey(
+      celebration && shouldShowBirthdayDialog(celebration) ? celebration.dateKey : null
+    );
+  }, [birthdayDateKey, today]);
 
   const handleAppearanceScroll = useCallback((event: UIEvent<HTMLElement>): void => {
     const scrollArea = event.currentTarget;
@@ -147,9 +179,19 @@ export function PanelContent(): JSX.Element | null {
   };
 
   const homePanel = (
-    <div className={`panel home-panel panel-layout-${desktopSettings.panelLayout}`}>
+    <div className={`panel home-panel panel-layout-${desktopSettings.panelLayout}${birthdayCelebration ? " birthday-active" : ""}`}>
       <header className="topbar">
         <h1>小鳄龙之家</h1>
+        {birthdayCelebration ? (
+          <BirthdayCelebration
+            celebration={birthdayCelebration}
+            dialogOpen={birthdayDialogOpen}
+            onCloseDialog={() => {
+              rememberBirthdayDialog(birthdayCelebration);
+              setBirthdayDialogDateKey(null);
+            }}
+          />
+        ) : null}
       </header>
 
       {socketError ? <div className="connection-toast">{socketError}</div> : null}
@@ -531,7 +573,7 @@ export function PanelContent(): JSX.Element | null {
   return (
     <>
       {panelView === "settings" ? settingsPanel : homePanel}
-      {currentReleaseOpen ? (
+      {currentReleaseOpen && !birthdayDialogOpen ? (
         <ReleaseAnnouncementDialog
           announcements={[getReleaseAnnouncement(CURRENT_APP_VERSION)]}
           heading="本次更新内容"

@@ -215,6 +215,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
   const [mentionAll, setMentionAll] = useState(false);
   const [mentionedUserIds, setMentionedUserIds] = useState<string[]>([]);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const listContentRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const composeInputRef = useRef<HTMLInputElement | null>(null);
   const highlightTimerRef = useRef<number | null>(null);
@@ -229,6 +230,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
   const isScrollingToBottomRef = useRef(false);
   const restoreFrameRef = useRef<number | null>(null);
   const startupFrameRef = useRef<number | null>(null);
+  const layoutFrameRef = useRef<number | null>(null);
   const coldStartScrollRef = useRef(scrollMemoryRef.current === null);
   const startupLastReadMessageIdRef = useRef(
     scrollMemoryRef.current === null ? readLastReadMessageId(currentUserId) : null
@@ -650,6 +652,10 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
     captureScrollMemory();
   }
 
+  function cancelPendingScrollToBottom(): void {
+    isScrollingToBottomRef.current = false;
+  }
+
   useEffect(() => {
     function handlePanelVisibility(visible: boolean): void {
       panelVisibleRef.current = visible;
@@ -752,6 +758,43 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       }
     });
   }
+
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const content = listContentRef.current;
+    if (!list || !content || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isAtBottomRef.current) {
+        return;
+      }
+
+      if (layoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(layoutFrameRef.current);
+      }
+      layoutFrameRef.current = window.requestAnimationFrame(() => {
+        layoutFrameRef.current = null;
+        if (!isAtBottomRef.current) {
+          return;
+        }
+
+        scrollToBottom(isScrollingToBottomRef.current ? "smooth" : "auto");
+        captureScrollMemory();
+      });
+    });
+
+    resizeObserver.observe(list);
+    resizeObserver.observe(content);
+    return () => {
+      resizeObserver.disconnect();
+      if (layoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(layoutFrameRef.current);
+        layoutFrameRef.current = null;
+      }
+    };
+  }, [scrollMemoryRef]);
 
   useLayoutEffect(() => {
     const latestMessage = renderedMessages[renderedMessages.length - 1] ?? null;
@@ -1224,98 +1267,107 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
           ) : null}
         </div>
       </div>
-      <div className="chat-list" ref={listRef} onScroll={updateBottomState}>
-        <div className="chat-history-status" role="status" aria-live="polite">
-          {loadingOlderMessages
-            ? "正在加载更早的消息…"
-            : olderMessagesError
-              ? (
-                  <button type="button" onClick={() => void loadOlderMessages()}>
-                    加载失败，点击重试
-                  </button>
-                )
-              : !hasOlderMessages && renderedMessages.length > 0
-                ? "已经到最早的消息了"
-                : ""}
+      <div
+        className="chat-list"
+        ref={listRef}
+        onScroll={updateBottomState}
+        onWheel={cancelPendingScrollToBottom}
+        onTouchStart={cancelPendingScrollToBottom}
+        onPointerDown={cancelPendingScrollToBottom}
+      >
+        <div className="chat-list-content" ref={listContentRef}>
+          <div className="chat-history-status" role="status" aria-live="polite">
+            {loadingOlderMessages
+              ? "正在加载更早的消息…"
+              : olderMessagesError
+                ? (
+                    <button type="button" onClick={() => void loadOlderMessages()}>
+                      加载失败，点击重试
+                    </button>
+                  )
+                : !hasOlderMessages && renderedMessages.length > 0
+                  ? "已经到最早的消息了"
+                  : ""}
+          </div>
+          {renderedMessages.map((message) => {
+            const isMine = message.user.id === currentUserId;
+            const replyTo = message.replyTo;
+            const isReplyTargetVisible = replyTo ? renderedMessageIds.has(replyTo.id) : false;
+            const messageMentionUsers = (message.mentionedUserIds ?? []).map((mentionedUserId) => ({
+              id: mentionedUserId,
+              nickname: presenceUsers.find((user) => user.id === mentionedUserId)?.nickname ?? "已注销成员"
+            }));
+            return (
+              <article
+                className={`chat-item ${isMine ? "mine" : ""} ${replyToMessageId === message.id ? "reply-selected" : ""} ${highlightedMessageId === message.id ? "quoted-target" : ""}`}
+                key={message.id}
+                data-message-id={message.id}
+                title="右键引用此消息"
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  beginReply(message.id);
+                }}
+              >
+                <UserAvatar user={message.user} />
+                <div className="bubble">
+                  <header>
+                    <strong>{message.user.nickname}</strong>
+                    <time dateTime={message.createdAt}>{formatChatTimestamp(message.createdAt)}</time>
+                  </header>
+                  {replyTo ? (
+                    <button
+                      type="button"
+                      className="chat-message-quote"
+                      disabled={!isReplyTargetVisible}
+                      title={isReplyTargetVisible ? "跳到原消息" : "原消息不在当前聊天记录中"}
+                      onClick={() => scrollToQuotedMessage(replyTo.id)}
+                    >
+                      <strong>{replyTo.user.nickname}</strong>
+                      <span>{getMessagePreview(replyTo)}</span>
+                    </button>
+                  ) : null}
+                  {message.mentionAll || messageMentionUsers.length > 0 ? (
+                    <div className="chat-message-mentions" aria-label="消息提及">
+                      {message.mentionAll ? <span>@所有人</span> : null}
+                      {messageMentionUsers.map((user) => <span key={user.id}>@{user.nickname}</span>)}
+                    </div>
+                  ) : null}
+                  {message.image ? (
+                    <button
+                      type="button"
+                      className="chat-image-button"
+                      onClick={() => openImageViewer(message.id)}
+                    >
+                      <img
+                        className="chat-image"
+                        src={withServerUrl(message.image.url) ?? message.image.url}
+                        alt={message.image.name}
+                        onLoad={handleRenderedImageLoad}
+                      />
+                    </button>
+                  ) : null}
+                  {message.file ? (
+                    <button
+                      type="button"
+                      className="chat-file-card"
+                      onClick={() => {
+                        void downloadChatFile(message.file as ChatFile);
+                      }}
+                    >
+                      <span className="chat-file-icon">FILE</span>
+                      <span className="chat-file-info">
+                        <strong>{message.file.name}</strong>
+                        <span>{formatFileSize(message.file.size)}</span>
+                      </span>
+                      <span className="chat-file-action">下载</span>
+                    </button>
+                  ) : null}
+                  {message.content ? <p>{message.content}</p> : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
-        {renderedMessages.map((message) => {
-          const isMine = message.user.id === currentUserId;
-          const replyTo = message.replyTo;
-          const isReplyTargetVisible = replyTo ? renderedMessageIds.has(replyTo.id) : false;
-          const messageMentionUsers = (message.mentionedUserIds ?? []).map((mentionedUserId) => ({
-            id: mentionedUserId,
-            nickname: presenceUsers.find((user) => user.id === mentionedUserId)?.nickname ?? "已注销成员"
-          }));
-          return (
-            <article
-              className={`chat-item ${isMine ? "mine" : ""} ${replyToMessageId === message.id ? "reply-selected" : ""} ${highlightedMessageId === message.id ? "quoted-target" : ""}`}
-              key={message.id}
-              data-message-id={message.id}
-              title="右键引用此消息"
-              onContextMenu={(event) => {
-                event.preventDefault();
-                beginReply(message.id);
-              }}
-            >
-              <UserAvatar user={message.user} />
-              <div className="bubble">
-                <header>
-                  <strong>{message.user.nickname}</strong>
-                  <time dateTime={message.createdAt}>{formatChatTimestamp(message.createdAt)}</time>
-                </header>
-                {replyTo ? (
-                  <button
-                    type="button"
-                    className="chat-message-quote"
-                    disabled={!isReplyTargetVisible}
-                    title={isReplyTargetVisible ? "跳到原消息" : "原消息不在当前聊天记录中"}
-                    onClick={() => scrollToQuotedMessage(replyTo.id)}
-                  >
-                    <strong>{replyTo.user.nickname}</strong>
-                    <span>{getMessagePreview(replyTo)}</span>
-                  </button>
-                ) : null}
-                {message.mentionAll || messageMentionUsers.length > 0 ? (
-                  <div className="chat-message-mentions" aria-label="消息提及">
-                    {message.mentionAll ? <span>@所有人</span> : null}
-                    {messageMentionUsers.map((user) => <span key={user.id}>@{user.nickname}</span>)}
-                  </div>
-                ) : null}
-                {message.image ? (
-                  <button
-                    type="button"
-                    className="chat-image-button"
-                    onClick={() => openImageViewer(message.id)}
-                  >
-                    <img
-                      className="chat-image"
-                      src={withServerUrl(message.image.url) ?? message.image.url}
-                      alt={message.image.name}
-                      onLoad={handleRenderedImageLoad}
-                    />
-                  </button>
-                ) : null}
-                {message.file ? (
-                  <button
-                    type="button"
-                    className="chat-file-card"
-                    onClick={() => {
-                      void downloadChatFile(message.file as ChatFile);
-                    }}
-                  >
-                    <span className="chat-file-icon">FILE</span>
-                    <span className="chat-file-info">
-                      <strong>{message.file.name}</strong>
-                      <span>{formatFileSize(message.file.size)}</span>
-                    </span>
-                    <span className="chat-file-action">下载</span>
-                  </button>
-                ) : null}
-                {message.content ? <p>{message.content}</p> : null}
-              </div>
-            </article>
-          );
-        })}
       </div>
 
       {dragDepth > 0 ? <div className="chat-drop-overlay">释放以添加附件</div> : null}

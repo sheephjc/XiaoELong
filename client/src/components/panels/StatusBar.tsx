@@ -139,7 +139,11 @@ export const StatusBar = memo(function StatusBar(): JSX.Element {
   }
 
   return (
-    <section className="status-bar" aria-label="成员状态" ref={rootRef}>
+    <section
+      className={`status-bar${pickerOpen ? " picker-open" : ""}`}
+      aria-label="成员状态"
+      ref={rootRef}
+    >
       <div className="status-list" ref={listRef}>
         {users.map((user) => {
           const isCurrentUser = user.id === currentUserId;

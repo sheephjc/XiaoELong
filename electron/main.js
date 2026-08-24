@@ -273,8 +273,20 @@ function getMascotBoundsFromAvatarWindow() {
   };
 }
 
+function keepAvatarMoodPromptOnTop(visible) {
+  if (!avatarWindow || avatarWindow.isDestroyed()) {
+    return;
+  }
+
+  avatarWindow.setAlwaysOnTop(true, visible ? "pop-up-menu" : "floating");
+  if (visible && avatarWindow.isVisible()) {
+    avatarWindow.moveTop();
+  }
+}
+
 function setAvatarMoodPromptVisible(visible) {
   if (avatarMoodPromptVisible === visible) {
+    keepAvatarMoodPromptOnTop(visible);
     return;
   }
 
@@ -297,6 +309,7 @@ function setAvatarMoodPromptVisible(visible) {
     ) {
       avatarWindow.setBounds(nextBounds, false);
     }
+    keepAvatarMoodPromptOnTop(visible);
   }
   if (panelOpen) {
     updatePanelBounds();

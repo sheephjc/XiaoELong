@@ -129,6 +129,7 @@ describe("StatusBar 正常路径", () => {
     // 点击自己：选择器打开
     fireEvent.click(screen.getByText("小明"));
     expect(screen.getByRole("button", { name: "😊" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "成员状态" })).toHaveClass("picker-open");
   });
 
   it("点选 emoji 调用 selectMood 并关闭选择器", () => {
@@ -200,6 +201,7 @@ describe("StatusBar 状态转换", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("button", { name: "😊" })).toBeNull();
+    expect(screen.getByRole("region", { name: "成员状态" })).not.toHaveClass("picker-open");
   });
 
   it("点击文档外部关闭心情选择器", () => {

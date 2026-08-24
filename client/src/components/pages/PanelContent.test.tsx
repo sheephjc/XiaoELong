@@ -7,6 +7,7 @@ import { useAuth, type AuthContextValue } from "../../contexts/AuthContext";
 import { useChat, type ChatContextValue } from "../../contexts/ChatContext";
 import { useDeity, type DeityContextValue } from "../../contexts/DeityContext";
 import { useDesktop, type DesktopContextValue } from "../../contexts/DesktopContext";
+import { getBirthdaySeenStorageKey } from "../../utils/birthday-celebration";
 import { PanelContent } from "./PanelContent";
 
 // ============================================================
@@ -99,6 +100,7 @@ function mockAuth(overrides: Partial<AuthContextValue> = {}): void {
 }
 
 beforeEach(() => {
+  localStorage.clear();
   setActiveTab = vi.fn();
   selectDivineTab = vi.fn();
   deleteAccount = vi.fn().mockResolvedValue(undefined);
@@ -117,6 +119,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   mockedUseAuth.mockReset();
   mockedUseChat.mockReset();
   mockedUseDeity.mockReset();
@@ -181,6 +184,29 @@ describe("PanelContent 边界条件", () => {
 // ============================================================
 
 describe("PanelContent 状态转换", () => {
+  it("生日当天优先展示祝福，关闭并重开后只保留面板内特效", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 7, 24, 10));
+
+    const firstRender = render(<PanelContent />);
+    expect(screen.getByRole("dialog", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeTruthy();
+    expect(screen.getByRole("status", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeTruthy();
+    expect(document.querySelector(".birthday-panel-effects")).toHaveAttribute("aria-hidden", "true");
+    expect(document.querySelectorAll(".birthday-panel-ribbons i")).toHaveLength(18);
+    expect(document.querySelectorAll(".birthday-panel-cakes i")).toHaveLength(5);
+    expect(document.querySelectorAll(".birthday-panel-firework")).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "开心收下 🎉" }));
+    expect(screen.queryByRole("dialog", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeNull();
+    expect(localStorage.getItem(getBirthdaySeenStorageKey("2026-08-24"))).toBe("seen");
+    expect(screen.getByRole("status", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeTruthy();
+
+    firstRender.unmount();
+    render(<PanelContent />);
+    expect(screen.queryByRole("dialog", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeNull();
+    expect(screen.getByRole("status", { name: "祝郭生日快乐！🥳🥳🥳" })).toBeTruthy();
+  });
+
   it("点'每日一题'tab 调 setActiveTab('daily')", () => {
     render(<PanelContent />);
     fireEvent.click(screen.getByRole("button", { name: "每日一题" }));
