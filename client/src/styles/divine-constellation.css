@@ -633,12 +633,11 @@ html:not(.desktop-runtime) .divine-compact-panel .constellation-compact {
   transform-origin: top center;
 }
 
-/* 主神与创世神的全屏主题能量翼；其他等级默认隐藏作为防线。 */
+/* 创世神专属的全屏主题能量翼；其他等级默认隐藏作为防线。 */
 .constellation-node .throne-wings {
   display: none;
 }
 
-.constellation-full .constellation-node.rank-main_god .throne-wings,
 .constellation-full .constellation-node.rank-creator_god .throne-wings {
   position: absolute;
   z-index: -2;
@@ -649,14 +648,10 @@ html:not(.desktop-runtime) .divine-compact-panel .constellation-compact {
   height: auto;
   aspect-ratio: 1200 / 760;
   overflow: visible;
-  opacity: 0.92;
+  opacity: 1;
   pointer-events: none;
   transform: translateX(-50%);
   transform-origin: 50% 53%;
-}
-
-.constellation-full .constellation-node.rank-creator_god .throne-wings {
-  opacity: 1;
 }
 
 .constellation-node .throne-energy-wing {

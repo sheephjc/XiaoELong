@@ -37,7 +37,9 @@ function createZip(sourceDirectory, archivePath) {
     const command = [
       "$ErrorActionPreference = 'Stop'",
       "Add-Type -AssemblyName System.IO.Compression.FileSystem",
-      "[System.IO.Compression.ZipFile]::CreateFromDirectory($env:XIAOELONG_ZIP_SOURCE, $env:XIAOELONG_ZIP_TARGET, [System.IO.Compression.CompressionLevel]::Optimal, $false)"
+      "Add-Type -AssemblyName System.IO.Compression",
+      "$zip = [System.IO.Compression.ZipFile]::Open($env:XIAOELONG_ZIP_TARGET, [System.IO.Compression.ZipArchiveMode]::Create)",
+      "try { foreach ($file in Get-ChildItem -LiteralPath $env:XIAOELONG_ZIP_SOURCE -Recurse -File -Force) { $entry = $file.FullName.Substring($env:XIAOELONG_ZIP_SOURCE.Length + 1).Replace('\\', '/'); [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $entry, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null } } finally { $zip.Dispose() }"
     ].join("; ");
 
     execFileSync(
@@ -75,6 +77,7 @@ const temporaryZipPath = path.join(
 // 前置检查：server 与 shared 的构建产物必须存在
 await assertBuilt(path.join(repositoryRoot, "server", "dist", "index.js"), "server 构建产物");
 await assertBuilt(path.join(repositoryRoot, "shared", "dist", "index.js"), "shared 构建产物");
+await assertBuilt(path.join(repositoryRoot, "client", "dist", "index.html"), "client 构建产物");
 await mkdir(deployDirectory, { recursive: true });
 
 // 在临时目录组装部署包，避免污染 git 工作区
@@ -86,8 +89,8 @@ try {
   await mkdir(path.join(staging, "server", "src", "db"), { recursive: true });
   await mkdir(path.join(staging, "shared"), { recursive: true });
   await cp(
-    path.join(deploySource, "README-SERVER.md"),
-    path.join(staging, "README-SERVER.md")
+    path.join(deploySource, "readme-server.md"),
+    path.join(staging, "readme-server.md")
   );
   await cp(
     path.join(repositoryRoot, "docs", "question-bank-sources.md"),
@@ -106,7 +109,7 @@ try {
     path.join(staging, "server", ".env.example")
   );
   await cp(
-    path.join(deploySource, "server", "src", "db", "init.sql"),
+    path.join(repositoryRoot, "server", "src", "db", "init.sql"),
     path.join(staging, "server", "src", "db", "init.sql")
   );
 
@@ -131,6 +134,9 @@ try {
     path.join(repositoryRoot, "shared", "package.json"),
     path.join(staging, "shared", "package.json")
   );
+
+  await cp(path.join(repositoryRoot, "client", "dist"), path.join(staging, "web"), { recursive: true });
+  await cp(path.join(deploySource, "compose.yaml"), path.join(staging, "compose.yaml"));
 
   // 4. 保证 updates 目录存在（客户端更新文件静态目录），用占位文件确保被 zip 收录
   await mkdir(path.join(staging, "updates"), { recursive: true });

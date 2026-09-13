@@ -14,7 +14,7 @@ const { createRenderSession } = require("./render-session");
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 const MAC_MANUAL_UPDATE_MANIFEST_URL = isDevelopment && process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
   ? process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
-  : "http://43.139.223.204:3001/updates/latest-mac.json";
+  : "http://111.231.19.104:3001/updates/latest-mac.json";
 const MAC_MANUAL_UPDATE_DOWNLOAD_BASE_URL =
   "https://github.com/sheephjc/XiaoELong/releases/download/";
 app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
@@ -278,7 +278,9 @@ function keepAvatarMoodPromptOnTop(visible) {
     return;
   }
 
-  avatarWindow.setAlwaysOnTop(true, visible ? "pop-up-menu" : "floating");
+  // The chat panel can also be always-on-top, so the daily prompt needs a
+  // distinct native level rather than relying only on creation/show order.
+  avatarWindow.setAlwaysOnTop(true, visible ? "screen-saver" : "floating");
   if (visible && avatarWindow.isVisible()) {
     avatarWindow.moveTop();
   }
@@ -755,6 +757,9 @@ function revealPanelWindow() {
   panelWindow.setOpacity(1);
   panelWindow.show();
   sendPanelVisibility(true);
+  if (avatarMoodPromptVisible) {
+    keepAvatarMoodPromptOnTop(true);
+  }
 }
 
 function showPanelWhenReady() {

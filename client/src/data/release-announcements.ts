@@ -12,6 +12,12 @@ export interface ReleaseAnnouncement {
 
 export const RELEASE_ANNOUNCEMENTS: ReleaseAnnouncement[] = [
   {
+    version: "2.2.2",
+    date: "2026-09-13",
+    title: "小鳄龙之家服务器迁移",
+    sections: [{ title: "更新", items: ["客户端连接迁移到新服务器。", "继续优化聊天滚动、神位视觉和桌宠心情提示显示。"] }]
+  },
+  {
     version: "2.2.1",
     date: "2026-08-24",
     title: "生日祝福与面板体验优化",

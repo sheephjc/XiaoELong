@@ -38,7 +38,7 @@ describe("ConstellationMap rank visuals", () => {
     ["mortal", 0, 0, "plain"],
     ["demigod", 0, 0, "plain"],
     ["true_god", 0, 49, "plate"],
-    ["main_god", 7, 49, "plate"],
+    ["main_god", 0, 49, "plate"],
     ["creator_god", 7, 49, "plate"]
   ])(
     "renders only the decorations allowed for %s",

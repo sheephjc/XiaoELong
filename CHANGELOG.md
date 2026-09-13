@@ -2,6 +2,14 @@
 
 本文件记录 XiaoELong 各版本的更新内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.2] - 2026-09-13
+
+- 后端部署迁移至 Ubuntu + 1Panel，增加 Linux 容器编排和可选网页静态目录。
+- 客户端、Windows 自动更新和 Mac 更新检查改用新服务器 `111.231.19.104:3001`；域名备案完成后再迁移 HTTPS。
+- 生产数据库与上传目录使用 `xiaoelong_home`，保留既有 `/uploads/` URL，兼容历史附件。
+- 精简服务器文档，原 Windows 文档保留为 `README-SERVER_old.md`。
+- 合入当前工作区的聊天滚动、神位视觉和心情提示层级修复。
+
 ## [2.2.1] - 2026-08-24
 
 ### Added（新增）

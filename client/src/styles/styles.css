@@ -1613,6 +1613,9 @@ button:disabled {
 }
 
 .chat-new-message-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   justify-self: center;
   min-height: 28px;
   border: 1px solid #bde5d7;

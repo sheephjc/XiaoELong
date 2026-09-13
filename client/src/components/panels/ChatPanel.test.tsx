@@ -26,6 +26,12 @@ const currentUser: PresenceUser = {
   todayMood: null
 };
 
+const otherUser: PresenceUser = {
+  ...currentUser,
+  id: "u2",
+  nickname: "小红"
+};
+
 const message: ChatMessage = {
   id: 1,
   user: currentUser,
@@ -45,6 +51,7 @@ let resizeObservers: MockResizeObserver[] = [];
 const originalScrollHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollHeight");
 const originalClientHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
 const originalScrollTo = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollTo");
+const originalDocumentVisibilityState = Object.getOwnPropertyDescriptor(document, "visibilityState");
 
 class MockResizeObserver {
   constructor(private readonly callback: ResizeObserverCallback) {
@@ -70,6 +77,20 @@ function flushAnimationFrames(): void {
   }
 }
 
+function mockRect(element: Element, top: number, bottom: number): void {
+  vi.spyOn(element, "getBoundingClientRect").mockReturnValue({
+    x: 0,
+    y: top,
+    top,
+    right: 200,
+    bottom,
+    left: 0,
+    width: 200,
+    height: bottom - top,
+    toJSON: () => ({})
+  });
+}
+
 function makeScrollMemory(atBottom: boolean, scrollTop: number): ChatScrollMemory {
   return {
     scrollTop,
@@ -82,15 +103,15 @@ function makeScrollMemory(atBottom: boolean, scrollTop: number): ChatScrollMemor
   };
 }
 
-function mockContexts(scrollMemory: ChatScrollMemory): {
+function mockContexts(scrollMemory: ChatScrollMemory | null, initialMessages: ChatMessage[] = [message]): {
   scrollMemoryRef: { current: ChatScrollMemory | null };
   setMessages: (messages: ChatMessage[]) => void;
 } {
   const scrollMemoryRef = { current: scrollMemory };
   mockedUseAuth.mockReturnValue({ currentUserId: currentUser.id } as AuthContextValue);
   let contextValue: ChatContextValue = {
-    messages: [message],
-    presenceUsers: [currentUser],
+    messages: initialMessages,
+    presenceUsers: [currentUser, otherUser],
     sendError: null,
     socketError: null,
     historyInitialized: true,
@@ -177,6 +198,11 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(HTMLElement.prototype, "scrollTo");
   }
+  if (originalDocumentVisibilityState) {
+    Object.defineProperty(document, "visibilityState", originalDocumentVisibilityState);
+  } else {
+    Reflect.deleteProperty(document, "visibilityState");
+  }
 });
 
 describe("ChatPanel 底部位置恢复", () => {
@@ -195,6 +221,40 @@ describe("ChatPanel 底部位置恢复", () => {
     });
 
     expect(list?.scrollTop).toBe(860);
+    expect(scrollMemoryRef.current?.scrollTop).toBe(860);
+    expect(scrollMemoryRef.current?.atBottom).toBe(true);
+  });
+
+  it("隐藏后重新显示时，按输入框占位后的实际可视高度贴住底部", () => {
+    const { scrollMemoryRef } = mockContexts(makeScrollMemory(true, 800));
+    const { container } = render(<ChatPanel />);
+    const list = container.querySelector<HTMLElement>(".chat-list");
+
+    expect(list).not.toBeNull();
+    if (!list) {
+      return;
+    }
+    expect(list.scrollTop).toBe(800);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden"
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    chatClientHeight = 140;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible"
+    });
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      flushAnimationFrames();
+    });
+
+    expect(list.scrollTop).toBe(860);
     expect(scrollMemoryRef.current?.scrollTop).toBe(860);
     expect(scrollMemoryRef.current?.atBottom).toBe(true);
   });
@@ -255,5 +315,101 @@ describe("ChatPanel 底部位置恢复", () => {
     });
 
     expect(list.scrollTop).toBe(700);
+  });
+
+  it("被提及的消息进入聊天可视区后清除有人@你提示", () => {
+    localStorage.setItem("xiaoelong_chat_mention_ack_u1", "1");
+    const mentionedMessage: ChatMessage = {
+      ...message,
+      id: 2,
+      user: otherUser,
+      content: "@小明 看一下这里",
+      mentionedUserIds: [currentUser.id]
+    };
+    const { setMessages } = mockContexts(makeScrollMemory(false, 420));
+    const { container } = render(<ChatPanel />);
+    const mentionButton = container.querySelector<HTMLButtonElement>(".chat-mention-button");
+    expect(mentionButton).not.toBeNull();
+
+    setMessages([message, mentionedMessage]);
+    fireEvent.click(mentionButton as HTMLButtonElement);
+    expect(container.querySelector(".chat-mention-alert")).not.toBeNull();
+
+    const list = container.querySelector<HTMLElement>(".chat-list");
+    const mentionedElement = container.querySelector<HTMLElement>('[data-message-id="2"]');
+    expect(list).not.toBeNull();
+    expect(mentionedElement).not.toBeNull();
+    if (!list || !mentionedElement) {
+      return;
+    }
+    mockRect(list, 0, 200);
+    mockRect(mentionedElement, 120, 170);
+
+    fireEvent.scroll(list);
+
+    expect(container.querySelector(".chat-mention-alert")).toBeNull();
+    expect(localStorage.getItem("xiaoelong_chat_mention_ack_u1")).toBe("2");
+  });
+
+  it("查看历史消息时的新消息使用向下提示，并在消息进入可视区后消失", () => {
+    const nextMessage: ChatMessage = {
+      ...message,
+      id: 2,
+      user: otherUser,
+      content: "历史阅读期间收到的新消息"
+    };
+    const { setMessages } = mockContexts(makeScrollMemory(false, 420));
+    const { container } = render(<ChatPanel />);
+    const mentionButton = container.querySelector<HTMLButtonElement>(".chat-mention-button");
+    expect(mentionButton).not.toBeNull();
+
+    setMessages([message, nextMessage]);
+    fireEvent.click(mentionButton as HTMLButtonElement);
+    expect(container.querySelector(".chat-new-message-pill")).toHaveTextContent("↓ 有新消息 1 条");
+
+    const list = container.querySelector<HTMLElement>(".chat-list");
+    const nextMessageElement = container.querySelector<HTMLElement>('[data-message-id="2"]');
+    expect(list).not.toBeNull();
+    expect(nextMessageElement).not.toBeNull();
+    if (!list || !nextMessageElement) {
+      return;
+    }
+    mockRect(list, 0, 200);
+    mockRect(nextMessageElement, 125, 175);
+
+    fireEvent.scroll(list);
+
+    expect(container.querySelector(".chat-new-message-pill")).toBeNull();
+  });
+
+  it("启动未读目标在当前历史位置下方时箭头向下，并在看过后消失", () => {
+    localStorage.setItem("xiaoelong_chat_last_read_message_u1", "1");
+    const startupUnreadMessage: ChatMessage = {
+      ...message,
+      id: 2,
+      user: otherUser,
+      content: "启动前收到的未读消息"
+    };
+    mockContexts(null, [message, startupUnreadMessage]);
+    const { container } = render(<ChatPanel />);
+    const list = container.querySelector<HTMLElement>(".chat-list");
+    const unreadElement = container.querySelector<HTMLElement>('[data-message-id="2"]');
+    expect(list).not.toBeNull();
+    expect(unreadElement).not.toBeNull();
+    if (!list || !unreadElement) {
+      return;
+    }
+
+    list.scrollTop = 420;
+    mockRect(list, 0, 200);
+    mockRect(unreadElement, 245, 295);
+    fireEvent.scroll(list);
+
+    expect(container.querySelector(".chat-unread-jump")).toHaveTextContent("↓");
+
+    mockRect(unreadElement, 125, 175);
+    fireEvent.scroll(list);
+
+    expect(container.querySelector(".chat-unread-jump")).toBeNull();
   });
 });

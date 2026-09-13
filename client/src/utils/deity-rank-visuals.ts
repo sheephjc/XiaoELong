@@ -23,7 +23,7 @@ const DEITY_RANK_VISUALS: Record<DeityRank, DeityRankVisuals> = {
     useIdentityPlate: true
   },
   main_god: {
-    showEnergyWings: true,
+    showEnergyWings: false,
     showParticles: true,
     useIdentityPlate: true
   },

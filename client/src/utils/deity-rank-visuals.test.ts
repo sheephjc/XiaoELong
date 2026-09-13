@@ -7,7 +7,7 @@ describe("getDeityRankVisuals", () => {
     ["mortal", false, false, false],
     ["demigod", false, false, false],
     ["true_god", false, true, true],
-    ["main_god", true, true, true],
+    ["main_god", false, true, true],
     ["creator_god", true, true, true]
   ])(
     "%s maps to the intended energy wings, particles, and identity treatment",

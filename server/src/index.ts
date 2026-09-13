@@ -65,6 +65,11 @@ app.use("/api/gomoku", createGomokuRouter(io, gomokuService));
 
 setupSocket(io, { gomokuService });
 
+// Production web assets are optional; API and upload URLs retain their existing routes.
+if (env.WEB_ROOT) {
+  app.use(express.static(path.resolve(env.WEB_ROOT)));
+}
+
 void dailyQuestionService
   .ensureTodayQuestion()
   .then((question) => {

@@ -51,7 +51,9 @@ function createZip(sourceDirectory, archivePath) {
     const command = [
       "$ErrorActionPreference = 'Stop'",
       "Add-Type -AssemblyName System.IO.Compression.FileSystem",
-      "[System.IO.Compression.ZipFile]::CreateFromDirectory($env:XIAOELONG_UPDATE_SOURCE, $env:XIAOELONG_UPDATE_TARGET, [System.IO.Compression.CompressionLevel]::Optimal, $false)"
+      "Add-Type -AssemblyName System.IO.Compression",
+      "$zip = [System.IO.Compression.ZipFile]::Open($env:XIAOELONG_UPDATE_TARGET, [System.IO.Compression.ZipArchiveMode]::Create)",
+      "try { foreach ($file in Get-ChildItem -LiteralPath $env:XIAOELONG_UPDATE_SOURCE -Recurse -File -Force) { $entry = $file.FullName.Substring($env:XIAOELONG_UPDATE_SOURCE.Length + 1).Replace('\\', '/'); [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, $file.FullName, $entry, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null } } finally { $zip.Dispose() }"
     ].join("; ");
     execFileSync(
       "powershell.exe",

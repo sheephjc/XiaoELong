@@ -209,6 +209,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
   const [hiddenUnreadCount, setHiddenUnreadCount] = useState(0);
   const [startupUnreadCount, setStartupUnreadCount] = useState(0);
   const [liveNewMessageCount, setLiveNewMessageCount] = useState(0);
+  const [unreadJumpDirection, setUnreadJumpDirection] = useState<"up" | "down">("up");
   const [replyToMessageId, setReplyToMessageId] = useState<number | null>(null);
   const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null);
   const [mentionPickerOpen, setMentionPickerOpen] = useState(false);
@@ -340,6 +341,82 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
     return listRef.current?.querySelector<HTMLElement>(`[data-message-id="${messageId}"]`) ?? null;
   }
 
+  function isMessageVisible(messageId: number): boolean {
+    if (!panelVisibleRef.current) {
+      return false;
+    }
+    const list = listRef.current;
+    const messageElement = getMessageElement(messageId);
+    if (!list || !messageElement) {
+      return false;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const messageBounds = messageElement.getBoundingClientRect();
+    const visibleHeight = Math.max(
+      0,
+      Math.min(messageBounds.bottom, listBounds.bottom) - Math.max(messageBounds.top, listBounds.top)
+    );
+    const requiredVisibleHeight = Math.min(24, Math.max(1, messageBounds.height));
+    return visibleHeight >= requiredVisibleHeight;
+  }
+
+  function acknowledgeVisibleChatNotices(): void {
+    if (!panelVisibleRef.current) {
+      return;
+    }
+
+    const latestVisibleMentionId = pendingMentionMessages.reduce<number | null>(
+      (latestId, message) => isMessageVisible(message.id) ? Math.max(latestId ?? 0, message.id) : latestId,
+      null
+    );
+    if (latestVisibleMentionId !== null && latestVisibleMentionId > (mentionAckMessageId ?? 0)) {
+      persistMentionAckMessageId(currentUserId, latestVisibleMentionId);
+      setMentionAckMessageId(latestVisibleMentionId);
+    }
+
+    let clearedUnreadNotice = false;
+    const firstStartupUnreadMessageId = firstStartupUnreadMessageIdRef.current;
+    if (firstStartupUnreadMessageId !== null && isMessageVisible(firstStartupUnreadMessageId)) {
+      firstStartupUnreadMessageIdRef.current = null;
+      startupLastReadMessageIdRef.current = null;
+      setStartupUnreadCount(0);
+      clearedUnreadNotice = true;
+    }
+    const firstHiddenUnreadMessageId = firstUnreadMessageIdRef.current;
+    if (firstHiddenUnreadMessageId !== null && isMessageVisible(firstHiddenUnreadMessageId)) {
+      setHiddenUnreadState(null, 0);
+      clearedUnreadNotice = true;
+    }
+    const firstLiveNewMessageId = firstLiveNewMessageIdRef.current;
+    if (firstLiveNewMessageId !== null && isMessageVisible(firstLiveNewMessageId)) {
+      setLiveNewMessageState(null, 0);
+      clearedUnreadNotice = true;
+    }
+
+    if (latestVisibleMentionId !== null || clearedUnreadNotice) {
+      window.xiaoelongDesktop?.setTrayUnread?.(false);
+    }
+  }
+
+  function updateUnreadJumpDirection(): void {
+    const targetMessageId = firstStartupUnreadMessageIdRef.current ?? firstUnreadMessageIdRef.current;
+    const list = listRef.current;
+    const targetElement = targetMessageId === null ? null : getMessageElement(targetMessageId);
+    if (!list || !targetElement) {
+      return;
+    }
+
+    const listBounds = list.getBoundingClientRect();
+    const targetBounds = targetElement.getBoundingClientRect();
+    setUnreadJumpDirection(targetBounds.bottom <= listBounds.top ? "up" : "down");
+  }
+
+  function refreshVisibleChatNotices(): void {
+    acknowledgeVisibleChatNotices();
+    updateUnreadJumpDirection();
+  }
+
   function setHiddenUnreadState(firstUnreadMessageId: number | null, unreadCount: number): void {
     const normalizedCount = firstUnreadMessageId === null ? 0 : Math.max(0, unreadCount);
     firstUnreadMessageIdRef.current = normalizedCount > 0 ? firstUnreadMessageId : null;
@@ -443,7 +520,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
     markLatestMessageRead();
   }
 
-  function scheduleStartupScrollToBottom(): void {
+  function scheduleScrollToBottomAfterLayout(): void {
     if (startupFrameRef.current !== null) {
       window.cancelAnimationFrame(startupFrameRef.current);
     }
@@ -479,9 +556,10 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       top: Math.max(0, targetTop),
       behavior: "smooth"
     });
-    setHiddenUnreadState(null, 0);
-    window.xiaoelongDesktop?.setTrayUnread?.(false);
-    window.requestAnimationFrame(captureScrollMemory);
+    window.requestAnimationFrame(() => {
+      refreshVisibleChatNotices();
+      captureScrollMemory();
+    });
   }
 
   function scrollToFirstStartupUnread(): void {
@@ -516,11 +594,10 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       top: Math.max(0, targetTop),
       behavior: "smooth"
     });
-    firstStartupUnreadMessageIdRef.current = null;
-    startupLastReadMessageIdRef.current = null;
-    setStartupUnreadCount(0);
-    window.xiaoelongDesktop?.setTrayUnread?.(false);
-    window.requestAnimationFrame(captureScrollMemory);
+    window.requestAnimationFrame(() => {
+      refreshVisibleChatNotices();
+      captureScrollMemory();
+    });
   }
 
   function scrollToFirstLiveNewMessage(): void {
@@ -543,9 +620,10 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       top: Math.max(0, targetTop),
       behavior: "smooth"
     });
-    setLiveNewMessageState(null, 0);
-    window.xiaoelongDesktop?.setTrayUnread?.(false);
-    window.requestAnimationFrame(captureScrollMemory);
+    window.requestAnimationFrame(() => {
+      refreshVisibleChatNotices();
+      captureScrollMemory();
+    });
   }
 
   function beginReply(messageId: number): void {
@@ -573,9 +651,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       return;
     }
     scrollToQuotedMessage(message.id);
-    persistMentionAckMessageId(currentUserId, message.id);
-    setMentionAckMessageId(message.id);
-    window.xiaoelongDesktop?.setTrayUnread?.(false);
+    window.requestAnimationFrame(refreshVisibleChatNotices);
   }
 
   function scrollToQuotedMessage(messageId: number): void {
@@ -649,6 +725,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       setLiveNewMessageState(null, 0);
       markLatestMessageRead();
     }
+    refreshVisibleChatNotices();
     captureScrollMemory();
   }
 
@@ -664,12 +741,19 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
         return;
       }
 
-      if (startupBottomPendingRef.current) {
-        startupBottomPendingRef.current = false;
-        if (unreadCountRef.current === 0 && liveNewMessageCountRef.current === 0) {
-          scheduleStartupScrollToBottom();
-        }
+      const shouldRestoreBottom = unreadCountRef.current === 0
+        && liveNewMessageCountRef.current === 0
+        && (
+          startupBottomPendingRef.current
+          || isAtBottomRef.current
+          || scrollMemoryRef.current?.atBottom === true
+        );
+      startupBottomPendingRef.current = false;
+      if (shouldRestoreBottom) {
+        isAtBottomRef.current = true;
+        scheduleScrollToBottomAfterLayout();
       }
+      window.requestAnimationFrame(refreshVisibleChatNotices);
     }
 
     const desktopCleanup = window.xiaoelongDesktop?.onPanelVisibilityChange?.(handlePanelVisibility);
@@ -797,6 +881,13 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
   }, [scrollMemoryRef]);
 
   useLayoutEffect(() => {
+    const frameId = window.requestAnimationFrame(refreshVisibleChatNotices);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [renderedMessages, pendingMentionMessages]);
+
+  useLayoutEffect(() => {
     const latestMessage = renderedMessages[renderedMessages.length - 1] ?? null;
     const knownMessageIds = knownMessageIdsRef.current;
     const newlyRenderedMessages = renderedMessages.filter((message) => !knownMessageIds.has(message.id));
@@ -829,7 +920,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       captureScrollMemory();
       if (panelVisibleRef.current) {
         startupBottomPendingRef.current = false;
-        scheduleStartupScrollToBottom();
+        scheduleScrollToBottomAfterLayout();
       }
       return;
     }
@@ -1250,7 +1341,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
                 : `返回本次启动后的第一条新消息（${startupUnreadCount} 条）`}
               onClick={scrollToFirstStartupUnread}
             >
-              <span aria-hidden="true">↑</span>
+              <span aria-hidden="true">{unreadJumpDirection === "up" ? "↑" : "↓"}</span>
               <small>{startupUnreadCount > 99 ? "99+" : startupUnreadCount}</small>
             </button>
           ) : hiddenUnreadCount > 0 ? (
@@ -1261,7 +1352,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
               title={`返回关闭期间第一条未读消息（${hiddenUnreadCount} 条）`}
               onClick={scrollToFirstHiddenUnread}
             >
-              <span aria-hidden="true">↓</span>
+              <span aria-hidden="true">{unreadJumpDirection === "up" ? "↑" : "↓"}</span>
               <small>{hiddenUnreadCount > 99 ? "99+" : hiddenUnreadCount}</small>
             </button>
           ) : null}
@@ -1375,7 +1466,7 @@ export const ChatPanel = memo(function ChatPanel(): JSX.Element {
       <div className="chat-compose">
         {liveNewMessageCount > 0 ? (
           <button type="button" className="chat-new-message-pill" onClick={scrollToFirstLiveNewMessage}>
-            有新消息 {liveNewMessageCount} 条
+            <span aria-hidden="true">↓</span> 有新消息 {liveNewMessageCount} 条
           </button>
         ) : null}
 
