@@ -69,7 +69,11 @@ setupSocket(io, { gomokuService });
 if (env.WEB_ROOT) {
   const webRoot = path.resolve(env.WEB_ROOT);
   app.use(express.static(webRoot));
-  app.get(/^\/pet\/?$/, (_req, res) => {
+  app.use("/pet/assets", express.static(path.join(webRoot, "assets")));
+  app.get("/pet", (_req, res) => {
+    res.redirect(308, "/pet/");
+  });
+  app.get("/pet/", (_req, res) => {
     res.sendFile(path.join(webRoot, "index.html"));
   });
 }
