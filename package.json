@@ -1,6 +1,6 @@
 {
   "name": "xiaoelong-monorepo",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "private": true,
   "engines": {
     "node": ">=22.22.2 <23"
@@ -18,7 +18,7 @@
     "dev:desktop": "npm run build --workspace shared && concurrently \"npm run dev:server\" \"npm run dev:client\" \"wait-on tcp:5173 && node scripts/dev-electron.mjs\"",
     "build": "npm run build:cloud",
     "build:local": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://localhost:3001 npm run build --workspace client",
-    "build:cloud": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=http://111.231.19.104:3001 npm run build --workspace client",
+    "build:cloud": "npm run clean && npm run build --workspace shared && npm run build --workspace server && cross-env VITE_SERVER_URL=https://xiaoelong.cn npm run build --workspace client",
     "db:init": "npm run db:init --workspace server",
     "deepseek:check": "npm run build --workspace shared && npm run build --workspace server && npm run deepseek:check --workspace server",
     "question-bank:import": "npm run build --workspace shared && npm run build --workspace server && npm run question-bank:import --workspace server --",
@@ -36,7 +36,8 @@
     "cross-env": "^7.0.3",
     "electron": "^43.3.0",
     "electron-builder": "^26.15.3",
-    "vitest": "^2.1.9",
+    "vite": "^6.4.3",
+    "vitest": "^4.1.11",
     "wait-on": "^8.0.3"
   },
   "build": {
@@ -98,11 +99,17 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "http://111.231.19.104:3001/updates/"
+        "url": "https://xiaoelong.cn/updates/"
       }
     ]
   },
   "dependencies": {
     "electron-updater": "^6.8.9"
+  },
+  "overrides": {
+    "qs": "^6.16.0",
+    "tsx": {
+      "esbuild": "^0.28.2"
+    }
   }
 }

@@ -67,7 +67,11 @@ setupSocket(io, { gomokuService });
 
 // Production web assets are optional; API and upload URLs retain their existing routes.
 if (env.WEB_ROOT) {
-  app.use(express.static(path.resolve(env.WEB_ROOT)));
+  const webRoot = path.resolve(env.WEB_ROOT);
+  app.use(express.static(webRoot));
+  app.get(/^\/pet\/?$/, (_req, res) => {
+    res.sendFile(path.join(webRoot, "index.html"));
+  });
 }
 
 void dailyQuestionService

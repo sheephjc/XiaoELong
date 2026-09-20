@@ -1,6 +1,6 @@
 {
   "name": "xiaoelong-server-deploy",
-  "version": "2.2.2",
+  "version": "2.2.3",
   "private": true,
   "engines": {
     "node": ">=22.22.2 <23"
@@ -15,5 +15,11 @@
     "question-bank:import": "cd server && node dist/scripts/question-bank-import.js",
     "question-bank:explain": "cd server && node dist/scripts/question-bank-explain.js",
     "start": "cd server && node dist/index.js"
+  },
+  "overrides": {
+    "qs": "^6.16.0",
+    "tsx": {
+      "esbuild": "^0.28.2"
+    }
   }
 }

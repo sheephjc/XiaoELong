@@ -14,7 +14,7 @@ const { createRenderSession } = require("./render-session");
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 const MAC_MANUAL_UPDATE_MANIFEST_URL = isDevelopment && process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
   ? process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
-  : "http://111.231.19.104:3001/updates/latest-mac.json";
+  : "https://xiaoelong.cn/updates/latest-mac.json";
 const MAC_MANUAL_UPDATE_DOWNLOAD_BASE_URL =
   "https://github.com/sheephjc/XiaoELong/releases/download/";
 app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
@@ -940,24 +940,13 @@ function hideAllWindows() {
   }
 }
 
-function showCurrentModeFromTray() {
-  if (divineWindowOpen && divineWindow && !divineWindow.isDestroyed()) {
-    divineWindow.show();
-    divineWindow.focus();
+function showHomePanelFromTray() {
+  if (currentWindowMode === "auth") {
+    showAuthMode();
     return;
   }
 
-  if (currentWindowMode === "expanded") {
-    showExpandedMode(currentPanelView);
-    return;
-  }
-
-  if (currentWindowMode === "collapsed") {
-    showCollapsedMode();
-    return;
-  }
-
-  showAuthMode();
+  setWindowMode("expanded");
 }
 
 function createTray() {
@@ -973,7 +962,7 @@ function createTray() {
     Menu.buildFromTemplate([
       {
         label: "显示小鳄龙",
-        click: showCurrentModeFromTray
+        click: showHomePanelFromTray
       },
       {
         label: "隐藏",
@@ -988,8 +977,8 @@ function createTray() {
       }
     ])
   );
-  tray.on("click", showCurrentModeFromTray);
-  tray.on("double-click", showCurrentModeFromTray);
+  tray.on("click", showHomePanelFromTray);
+  tray.on("double-click", showHomePanelFromTray);
   if (trayUnreadFlashing) {
     setTrayUnreadFlashing(true);
   }

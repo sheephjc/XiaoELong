@@ -2,6 +2,15 @@
 
 本文件记录 XiaoELong 各版本的更新内容。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.3] - 2026-09-20
+
+- 新增 `xiaoelong.cn/pet` 桌面组件发布页，提供 Windows 与 macOS 下载及产品简介。
+- 正式启用 `xiaoelong.cn`，客户端、自动更新、Mac 更新检查和网页 API 全部迁移至 HTTPS 域名。
+- 托盘单击、双击及“显示小鳄龙”统一打开左键主面板；未登录时仍显示登录窗口。
+- 修复 Socket.IO、YAML 解析、请求参数解析、数据库驱动及 HTML 清理相关依赖的安全告警，同步源码与服务器部署锁文件。
+- 上传组件升级至 Multer 2.3，定时任务升级至 node-cron 4.6，移除旧版 node-cron 类型包；补充上传及上海时区每日出题回归测试。
+- 更新 Vite、Vitest 等开发测试依赖；通过根配置中的 overrides 限定 qs 修复版本及受影响 esbuild 版本的替代版本，部署根配置保持一致。
+
 ## [2.2.2] - 2026-09-13
 
 - 后端部署迁移至 Ubuntu + 1Panel，增加 Linux 容器编排和可选网页静态目录。

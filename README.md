@@ -4,14 +4,14 @@
 
 小鳄龙是一个给固定小群使用的 Windows/macOS 桌面伴侣。它用 Electron 提供桌面悬浮入口，React/Vite 渲染界面，Express + Socket.io 提供前后端连接。后端采用 MySQL 持久化数据。目前主要功能包括：聊天室、每日问题、每日心情、膜拜、五子棋等。
 
-当前版本：`2.2.2`
+当前版本：`2.2.3`
 
-## 2.2.2 更新要点
+## 2.2.3 更新要点
 
-- 迁移至 Ubuntu + 1Panel，客户端和更新服务临时使用新服务器 IP。
-- 数据库使用 `xiaoelong_home`，上传文件持久化目录独立命名为 `xiaoelong_home`。
-- 部署包包含网页、Linux 容器编排和精简部署说明；旧 Windows 说明保留为 `_old`。
-- 沿用现有聊天、神位视觉和桌宠提示修复。
+- 新增 `https://xiaoelong.cn/pet` 桌面组件发布页，提供 Windows 与 macOS 下载。
+- 客户端、API 和自动更新迁移至 `https://xiaoelong.cn`。
+- 托盘打开程序时直接显示左键主面板。
+- 升级服务端、实时通信、上传与构建依赖，修复已知安全告警。
 
 （详细见 [版本历史](CHANGELOG.md) ）
 
@@ -215,7 +215,7 @@ npm.cmd run build:cloud
 npm.cmd run server:deploy
 ```
 
-该命令会构建前后端（同时清理旧构建产物），然后生成 `deploy/XiaoELong-server-2.2.2.zip`。Windows 使用系统自带的 PowerShell/.NET 压缩，无需额外安装 `zip`；macOS/Linux 需要系统提供 `zip` 命令。脚本会先生成同目录临时 ZIP，成功后才替换正式包，失败时保留上一份正式包。
+该命令会构建前后端（同时清理旧构建产物），然后生成 `deploy/XiaoELong-server-2.2.3.zip`。Windows 使用系统自带的 PowerShell/.NET 压缩，无需额外安装 `zip`；macOS/Linux 需要系统提供 `zip` 命令。脚本会先生成同目录临时 ZIP，成功后才替换正式包，失败时保留上一份正式包。
 
 生成 Electron unpacked 目录包，适合本机快速测试：
 
@@ -237,7 +237,7 @@ npm.cmd run electron:dist
 npm.cmd run updates:deploy
 ```
 
-该命令会生成 `deploy/XiaoELong-updates-2.2.2.zip` 与 `deploy/SHA256-2.2.2.txt`；校验清单还会包含同版本服务器部署包（若已生成）的哈希。
+该命令会生成 `deploy/XiaoELong-updates-2.2.3.zip` 与 `deploy/SHA256-2.2.3.txt`；校验清单还会包含同版本服务器部署包（若已生成）的哈希。
 
 在 macOS 或 GitHub Actions 的 macOS 运行器中生成 Intel + Apple Silicon 通用测试包：
 
@@ -245,7 +245,7 @@ npm.cmd run updates:deploy
 npm run electron:dist:mac
 ```
 
-该命令会在 `release/` 下生成 `XiaoELong-2.2.2-mac-universal.dmg`、`XiaoELong-2.2.2-mac-universal.zip`、`latest-mac.yml` 和 `latest-mac.json`。仓库中的 `Build macOS universal` GitHub Actions 工作流固定使用 Node.js `22.23.1`，可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对版本、文件名、DMG 大小与 SHA-256，并上传名为 `XiaoELong-2.2.2-mac-universal` 的 Actions 产物。触发时可选填与版本一致的 `release_tag`（例如 `v2.2.2`），让运行器把验证后的 DMG、`latest-mac.json`、架构和 SHA-256 清单直接追加到已有 GitHub Release。
+该命令会在 `release/` 下生成 `XiaoELong-2.2.3-mac-universal.dmg`、`XiaoELong-2.2.3-mac-universal.zip`、`latest-mac.yml` 和 `latest-mac.json`。仓库中的 `Build macOS universal` GitHub Actions 工作流固定使用 Node.js `22.23.1`，可手动触发；工作流会从根 `package.json` 读取版本号，验证 App 同时包含 `x86_64` 和 `arm64`，核对版本、文件名、DMG 大小与 SHA-256，并上传名为 `XiaoELong-2.2.3-mac-universal` 的 Actions 产物。触发时可选填与版本一致的 `release_tag`（例如 `v2.2.3`），让运行器把验证后的 DMG、`latest-mac.json`、架构和 SHA-256 清单直接追加到已有 GitHub Release。
 
 下载并解压 Actions 产物后，可在 macOS 终端校验安装包：
 
@@ -267,7 +267,7 @@ xattr -dr com.apple.quarantine /Applications/XiaoELong.app
 - 浏览器下载完成后，完全退出旧版 XiaoELong，打开 DMG，将应用拖入“应用程序”并选择替换，再重新打开。登录信息和本机设置保存在用户数据目录中，正常覆盖应用不会清除它们。
 - 这是“检查版本 + 打开可信下载链接”，不是静默自动安装；未签名应用若要使用 Electron 的完整自动更新，仍需 Apple Developer 证书、签名和公证。
 - 已经发出的 `1.3.1` 不包含检查逻辑，必须手动安装一次 `1.3.2` 或更新版本；从 `1.3.2` 开始才会提示后续版本。
-- 发布时将 DMG 上传到标签为 `v2.2.2` 的 GitHub Release，再把 Actions 生成的 `latest-mac.json` 上传到服务器更新目录。不要上传 `latest-mac.yml`，它不用于当前的 Mac 手动更新流程。
+- 发布时将 DMG 上传到标签为 `v2.2.3` 的 GitHub Release，再把 Actions 生成的 `latest-mac.json` 上传到服务器更新目录。不要上传 `latest-mac.yml`，它不用于当前的 Mac 手动更新流程。
 - Windows 自动更新不受影响。若用户网络无法访问 GitHub，仍可直接向其发送 DMG。
 
 `build` 会先运行 `clean`，避免旧的 `dist` 文件混入发布产物。

@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import { AppProviders } from "./AppProviders";
+import { PetReleasePage } from "./components/pages/PetReleasePage";
 import "./styles/styles.css";
 import "./styles/divine-constellation.css";
 
@@ -79,12 +80,22 @@ if (window.xiaoelongDesktop?.isDesktop) {
   });
 }
 
+const isPetReleasePage = !window.xiaoelongDesktop?.isDesktop && /^\/pet\/?$/.test(window.location.pathname);
+
+if (isPetReleasePage) {
+  document.title = "小鳄龙桌面组件 · Windows 与 macOS 下载";
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <AppErrorBoundary>
-      <AppProviders>
-        <AppRecoveryMarker />
-      </AppProviders>
+      {isPetReleasePage ? (
+        <PetReleasePage />
+      ) : (
+        <AppProviders>
+          <AppRecoveryMarker />
+        </AppProviders>
+      )}
     </AppErrorBoundary>
   </React.StrictMode>
 );

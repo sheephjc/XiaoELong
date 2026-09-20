@@ -12,6 +12,28 @@ export interface ReleaseAnnouncement {
 
 export const RELEASE_ANNOUNCEMENTS: ReleaseAnnouncement[] = [
   {
+    version: "2.2.3",
+    date: "2026-09-20",
+    title: "域名启用与桌面组件发布页",
+    sections: [
+      {
+        title: "新增",
+        items: ["上线小鳄龙桌面组件发布页，提供 Windows 和 macOS 安装包下载与简单介绍。"]
+      },
+      {
+        title: "调整",
+        items: [
+          "服务与自动更新地址迁移到 xiaoelong.cn，并启用 HTTPS。",
+          "从任务栏托盘打开程序时，直接显示左键主面板。"
+        ]
+      },
+      {
+        title: "修复",
+        items: ["升级服务端、上传、实时通信和构建依赖，修复已知安全告警。"]
+      }
+    ]
+  },
+  {
     version: "2.2.2",
     date: "2026-09-13",
     title: "小鳄龙之家服务器迁移",

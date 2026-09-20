@@ -9,7 +9,7 @@ const {
   validateMacUpdateManifest
 } = manualMacUpdater;
 
-const manifestUrl = "http://111.231.19.104:3001/updates/latest-mac.json";
+const manifestUrl = "https://xiaoelong.cn/updates/latest-mac.json";
 const validManifest = {
   schemaVersion: 1,
   version: "1.3.2",
@@ -56,7 +56,7 @@ describe("manual Mac updater", () => {
       "https://github.com/sheephjc/XiaoELong/releases/download/v1.3.2/XiaoELong-1.3.2-mac-universal.dmg"
     );
     expect(() =>
-      createMacUpdateDownloadUrl(validManifest, "http://111.231.19.104:3001/updates/")
+      createMacUpdateDownloadUrl(validManifest, "http://xiaoelong.cn/updates/")
     ).toThrow(/HTTPS/);
     expect(() =>
       createMacUpdateDownloadUrl(
@@ -82,7 +82,7 @@ describe("manual Mac updater", () => {
 
     await expect(loadMacUpdateManifest({ manifestUrl, fetchImpl })).resolves.toEqual(validManifest);
     expect(fetchImpl).toHaveBeenCalledOnce();
-    expect(fetchImpl.mock.calls[0][0]).toMatch(/^http:\/\/111\.231\.19\.104:3001\/updates\/latest-mac\.json\?ts=\d+$/);
+    expect(fetchImpl.mock.calls[0][0]).toMatch(/^https:\/\/xiaoelong\.cn\/updates\/latest-mac\.json\?ts=\d+$/);
   });
 
   it("rejects unsuccessful manifest responses", async () => {
