@@ -181,9 +181,21 @@ docker run --rm --network 1panel-network \
 
 `xiaoelong.cn` 的现有网站继续保留首页和其他页面。桌面组件只在 `/pet` 增加一个静态发布页，不需要为 API、WebSocket、上传或更新配置域名反向代理。桌面程序继续连接 `http://111.231.19.104:3001`；发布页的 Windows、macOS 下载按钮指向 GitHub Release 的 HTTPS 文件。
 
-本机运行 `npm run pet:deploy`，生成 `deploy/XiaoELong-pet-2.2.3.zip`。压缩包顶层是 `pet/`，其中包含 `index.html` 和 `assets/`，资源路径已固定为 `/pet/assets/...`。在 1Panel 中核对 `xiaoelong.cn` 网站的实际根目录，将压缩包上传到该目录并解压；若已有 `pet/`，先备份再替换。不要把这个压缩包解压到 `/opt/xiaoelong_home` 或覆盖网站首页。
+本机运行 `npm run pet:deploy`，生成 `deploy/XiaoELong-pet-2.2.3.zip`。压缩包顶层是 `pet/`，其中包含 `index.html` 和 `assets/`，资源路径已固定为 `/pet/assets/...`。当前 1Panel 网站的主机侧根目录是 `/opt/1panel/www/sites/xiaoelong_cn/index`，OpenResty 容器内对应 `/www/sites/xiaoelong_cn/index`。把压缩包上传后解压到**主机侧根目录**，使 `index/pet/index.html` 存在；若已有 `pet/`，先备份再替换。不要把压缩包解压到 `/opt/xiaoelong_home`，也不要覆盖原网站首页。
 
-访问 `https://xiaoelong.cn/pet` 检查页面是否正常显示，并确认两个下载按钮能打开对应的 2.2.3 Release 文件。若网站的静态目录不自动把 `/pet` 重定向到 `/pet/`，只需为 `/pet` 增加一个指向 `/pet/` 的 301 规则；无需增加其他反向代理。
+`xiaoelong.cn` 在 1Panel 中是反向代理网站，现有 `/` 规则仍指向 `127.0.0.1:3002`。因此还要在 **网站 → xiaoelong.cn → 配置 → 配置文件** 的 `server` 块中、`include /www/sites/xiaoelong_cn/proxy/*.conf;` 前加入以下两条静态路径规则，并保存重载：
+
+```nginx
+location = /pet {
+    return 301 /pet/;
+}
+location ^~ /pet/ {
+    index index.html;
+    try_files $uri $uri/ =404;
+}
+```
+
+`/pet` 因此跳转到 `/pet/`，页面和 `/pet/assets/...` 直接从静态目录读取；原有 `/` 代理不变。重载前先确认 OpenResty 配置检查成功，随后访问 `https://xiaoelong.cn/pet` 检查页面、两个下载按钮以及原首页。无需为其他路径增加反向代理。
 
 以后若决定让桌面客户端也改走 HTTPS，再单独配置 API、WebSocket、上传和更新路径的反向代理，修改前端与客户端地址并重新构建发布。
 
