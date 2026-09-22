@@ -3,6 +3,7 @@ dist/
 release/
 deploy/XiaoELong-server-*.zip
 deploy/XiaoELong-updates-*.zip
+deploy/XiaoELong-pet-*.zip
 deploy/SHA256-*.txt
 deploy/updates/
 mac-artifacts/

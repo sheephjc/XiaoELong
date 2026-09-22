@@ -2,7 +2,7 @@ import mascotUrl from "../../assets/xiaoelong-mascot.png";
 import "../../styles/pet-release.css";
 
 const VERSION = "2.2.3";
-const WINDOWS_DOWNLOAD = `/updates/XiaoELong%20Setup%20${VERSION}.exe`;
+const WINDOWS_DOWNLOAD = `https://github.com/sheephjc/XiaoELong/releases/download/v${VERSION}/XiaoELong.Setup.${VERSION}.exe`;
 const MAC_DOWNLOAD = `https://github.com/sheephjc/XiaoELong/releases/download/v${VERSION}/XiaoELong-${VERSION}-mac-universal.dmg`;
 
 export function PetReleasePage(): JSX.Element {
@@ -35,7 +35,7 @@ export function PetReleasePage(): JSX.Element {
               <span><strong>macOS 版</strong><small>Intel 与 Apple 芯片通用</small></span>
             </a>
           </div>
-          <p className="pet-release__version">当前版本 {VERSION} · 2026 年 9 月 20 日</p>
+          <p className="pet-release__version">当前版本 {VERSION} · 2026 年 9 月 22 日</p>
         </div>
 
         <div className="pet-release__visual" aria-label="小鳄龙桌面组件预览">
@@ -65,7 +65,7 @@ export function PetReleasePage(): JSX.Element {
           <li>新增 Windows 与 macOS 客户端发布页。</li>
           <li>托盘打开程序时直接进入左键主面板。</li>
           <li>升级服务端与构建依赖，修复已知安全告警。</li>
-          <li>服务地址迁移至 xiaoelong.cn，并启用 HTTPS。</li>
+          <li>新增 xiaoelong.cn/pet 发布页，桌面服务继续使用现有服务器 IP。</li>
         </ul>
       </section>
 

@@ -2,7 +2,7 @@
 
 版本：**2.2.3**。环境：Ubuntu 22.04 + 1Panel，Node.js 22.23.1，MySQL 8.0。
 
-目前使用 `https://xiaoelong.cn`。`xiaoelong.cn` 域名备案已完成，通过 OpenResty 提供 HTTPS 网站、API、WebSocket 和客户端更新服务。
+桌面客户端、API 和自动更新仍使用 `http://111.231.19.104:3001`。`https://xiaoelong.cn/pet` 仅承载发布页，域名不转发其他客户端接口。
 
 ## 目录与数据库
 
@@ -46,7 +46,7 @@ docker run --rm --network 1panel-network \
 ```dotenv
 NODE_ENV=production
 PORT=3001
-CLIENT_ORIGIN=null,https://xiaoelong.cn
+CLIENT_ORIGIN=null,http://111.231.19.104,http://111.231.19.104:3001
 DB_HOST=xiaoelong_home_mysql
 DB_PORT=3306
 DB_USER=xiaoelong_home
@@ -151,7 +151,7 @@ docker run --rm --network 1panel-network \
 
 先在 1Panel 查看容器日志，确认没有数据库连接、缺少模块或启动异常，再检查：
 
-1. `https://xiaoelong.cn/health` 返回成功，容器健康状态正常。
+1. `http://111.231.19.104:3001/health` 返回成功，容器健康状态正常。
 2. 网页能打开，已有用户能登录，历史消息和头像能显示。
 3. 上传图片与附件可用，两个客户端之间的实时聊天正常。
 4. 有客户端更新时，对应更新清单及安装包下载可用。
@@ -177,8 +177,14 @@ docker run --rm --network 1panel-network \
 
 平时可在 1Panel 设置数据库和上传目录的定期备份；更新前仍应做一次单独备份。
 
-## 备案后
+## `/pet` 发布页
 
-配置域名解析和 OpenResty 反向代理，启用 HTTPS 与 WebSocket；再统一修改前端服务地址、Windows 更新地址、Mac 更新清单地址和 `CLIENT_ORIGIN`，重新构建发布客户端。确认 HTTPS 可用后收紧 3001 的公网入口。
+`xiaoelong.cn` 的现有网站继续保留首页和其他页面。桌面组件只在 `/pet` 增加一个静态发布页，不需要为 API、WebSocket、上传或更新配置域名反向代理。桌面程序继续连接 `http://111.231.19.104:3001`；发布页的 Windows、macOS 下载按钮指向 GitHub Release 的 HTTPS 文件。
+
+本机运行 `npm run pet:deploy`，生成 `deploy/XiaoELong-pet-2.2.3.zip`。压缩包顶层是 `pet/`，其中包含 `index.html` 和 `assets/`，资源路径已固定为 `/pet/assets/...`。在 1Panel 中核对 `xiaoelong.cn` 网站的实际根目录，将压缩包上传到该目录并解压；若已有 `pet/`，先备份再替换。不要把这个压缩包解压到 `/opt/xiaoelong_home` 或覆盖网站首页。
+
+访问 `https://xiaoelong.cn/pet` 检查页面是否正常显示，并确认两个下载按钮能打开对应的 2.2.3 Release 文件。若网站的静态目录不自动把 `/pet` 重定向到 `/pet/`，只需为 `/pet` 增加一个指向 `/pet/` 的 301 规则；无需增加其他反向代理。
+
+以后若决定让桌面客户端也改走 HTTPS，再单独配置 API、WebSocket、上传和更新路径的反向代理，修改前端与客户端地址并重新构建发布。
 
 旧 Windows 操作文档留存在仓库 `README-SERVER_old.md`，不适用于当前服务器。

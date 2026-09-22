@@ -14,7 +14,7 @@ const { createRenderSession } = require("./render-session");
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 const MAC_MANUAL_UPDATE_MANIFEST_URL = isDevelopment && process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
   ? process.env.XIAOELONG_MAC_UPDATE_MANIFEST_URL
-  : "https://xiaoelong.cn/updates/latest-mac.json";
+  : "http://111.231.19.104:3001/updates/latest-mac.json";
 const MAC_MANUAL_UPDATE_DOWNLOAD_BASE_URL =
   "https://github.com/sheephjc/XiaoELong/releases/download/";
 app.setName(isDevelopment ? "XiaoELong Dev" : "XiaoELong");
